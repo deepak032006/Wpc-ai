@@ -140,7 +140,7 @@ clientApi.interceptors.response.use(
       } catch (refreshError) {
         console.error(" Refresh failed in 401 handler");
         
-        // Clear tokens and redirect to login if refresh fails
+        
         document.cookie = "access-token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
         document.cookie = "refresh-token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
         document.cookie = "user-info=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
