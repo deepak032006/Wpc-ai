@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import axios from "axios";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://wpcapi.careerbandhu.in/";
+  process.env.NEXT_PUBLIC_API_URL || "https://wpcapitest.careerbandhu.in/";
 
 type AuthResponse = {
   access: string;

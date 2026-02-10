@@ -27,7 +27,7 @@ const isTokenExpired = (token: string): boolean => {
 };
 
 const clientApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "https://wpcapi.careerbandhu.in/",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "https://wpcapitest.careerbandhu.in/",
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -49,7 +49,7 @@ clientApi.interceptors.request.use(
         try {
           // Call refresh endpoint to get new access token
           const refreshResponse = await axios.post(
-            "https://wpcapi.careerbandhu.in/api/auth/refresh/",
+            "https://wpcapitest.careerbandhu.in/api/auth/refresh/",
             { refresh: refreshToken },
             { 
               withCredentials: true,
