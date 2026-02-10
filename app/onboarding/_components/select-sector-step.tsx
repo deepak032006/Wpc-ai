@@ -91,7 +91,7 @@ export default function SelectTargetRolesStep() {
           Target Roles
         </h2>
         <p className="text-[15px] lg:text-[18px] text-[#4D4D4D] mb-6">
-          Select the roles you're interested in
+          Select the roles you're interested in Please Choose One
         </p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

@@ -430,14 +430,14 @@ const CandidatePage = () => {
                                         <Video className="w-5 h-5 text-[#0852C9]" />
                                     </div>
                                     <h3 className="text-[16px] font-semibold text-[#111827]">
-                                        Interview Recording
+                                        Interview Not Conducted
                                     </h3>
                                 </div>
                                 <p className="text-[14px] text-[#575757] mb-4 leading-relaxed">
-                                    Rewatch the interview to help with your decision
+                                    Interview Not Conducted Yet , After Interview given ,Rewatch the interview to help with your decision
                                 </p>
                                 <button className="w-full py-3 rounded-[6px] bg-[#0852C9] text-white font-medium text-[15px] transition-all duration-200 hover:bg-[#1d4ed8] hover:shadow-md">
-                                    Watch Recording
+                                   Interview Not Conducted
                                 </button>
                             </div>
                         )}
