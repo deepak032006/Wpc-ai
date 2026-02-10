@@ -1,0 +1,46 @@
+const ukCities: { code: string; name: string }[] = [
+  { code: 'LON', name: 'London' },
+  { code: 'MAN', name: 'Manchester' },
+  { code: 'BIR', name: 'Birmingham' },
+  { code: 'LEE', name: 'Leeds' },
+  { code: 'LIV', name: 'Liverpool' },
+  { code: 'NEW', name: 'Newcastle upon Tyne' },
+  { code: 'SHE', name: 'Sheffield' },
+  { code: 'NOT', name: 'Nottingham' },
+  { code: 'LEI', name: 'Leicester' },
+  { code: 'COV', name: 'Coventry' },
+  { code: 'DER', name: 'Derby' },
+  { code: 'WOL', name: 'Wolverhampton' },
+  { code: 'STO', name: 'Stoke-on-Trent' },
+  { code: 'NOR', name: 'Norwich' },
+  { code: 'CAM', name: 'Cambridge' },
+  { code: 'OXF', name: 'Oxford' },
+  { code: 'REA', name: 'Reading' },
+  { code: 'LUT', name: 'Luton' },
+  { code: 'MIL', name: 'Milton Keynes' },
+  { code: 'NTH', name: 'Northampton' },
+  { code: 'BED', name: 'Bedford' },
+
+  { code: 'BRI', name: 'Bristol' },
+  { code: 'BAT', name: 'Bath' },
+  { code: 'CHE', name: 'Cheltenham' },
+  { code: 'GLO', name: 'Gloucester' },
+  { code: 'SWI', name: 'Swindon' },
+
+  { code: 'CAR', name: 'Cardiff' },
+  { code: 'SWA', name: 'Swansea' },
+  { code: 'NEWP', name: 'Newport' },
+
+  { code: 'EDI', name: 'Edinburgh' },
+  { code: 'GLA', name: 'Glasgow' },
+  { code: 'ABE', name: 'Aberdeen' },
+  { code: 'DUN', name: 'Dundee' },
+  { code: 'INV', name: 'Inverness' },
+
+  { code: 'BEL', name: 'Belfast' },
+  { code: 'DERY', name: 'Derry' },
+  { code: 'LIS', name: 'Lisburn' },
+  { code: 'NEWB', name: 'Newry' },
+]
+
+export default ukCities;

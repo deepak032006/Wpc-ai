@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --color-primary: #0852C9;
+  --color-secondary: #09A0F3;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --font-inter: var(--font-inter);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+
+@keyframes shimmer {
+  0% {
+    background-position: -450px 0;
+  }
+  100% {
+    background-position: 450px 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #e5e7eb 25%,
+    #dbeafe 37%,
+    #e5e7eb 63%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    #2563eb,
+    #60a5fa,
+    #2563eb
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@layer utilities {
+  .skeleton-shimmer {
+    @apply relative overflow-hidden bg-gray-100;
+  }
+
+  .skeleton-shimmer::after {
+    @apply absolute inset-0 content-[''];
+    background: linear-gradient(
+      90deg, 
+      rgba(243, 244, 246, 0) 0%, 
+      rgba(224, 231, 255, 0.8) 50%, 
+      rgba(243, 244, 246, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-effect 2s infinite linear;
+  }
+
+  @keyframes shimmer-effect {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+}
