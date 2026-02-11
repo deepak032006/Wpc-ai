@@ -47,6 +47,12 @@ export default function UKAndBasicInfoStep() {
     setShowError(true);
   };
 
+  const handleBackToQuestion = () => {
+    setAnsweredUK(null);
+    setShowError(false);
+    updateFormData({ is_in_uk: null });
+  };
+
   const onSubmit = (data: BasicInfoForm) => {
     updateFormData({
       ...data,
@@ -128,6 +134,12 @@ export default function UKAndBasicInfoStep() {
               </p>
               
             </div>
+              <button
+                onClick={handleBackToQuestion}
+                className="w-full h-14 bg-[#0852C9] text-white py-3.5 rounded-[9px] font-semibold hover:bg-[#0852C9]/90"
+              >
+                Back
+              </button>
           </div>
           )}
         </div>

@@ -108,7 +108,7 @@ const HowitWorks = ({ setIsIntro }) => {
                     </button>
 
                     <button className="bg-[#0852C9] hover:bg-[#0852C9]/90 text-white rounded-lg font-semibold py-3 px-9"onClick={()=>{
-                        router.push("/auth/login")
+                        router.push("/auth/employer/login")
                     }}>
                         Get Started
                     </button>
