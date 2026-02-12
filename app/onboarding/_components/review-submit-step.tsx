@@ -225,7 +225,11 @@ export default function ReviewSubmitStep() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Optional Services Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-8">
+            <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-8"
+            >
+
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-80 bg-gradient-to-b from-blue-100 via-blue-300 to-blue-100 rounded-full blur-xl opacity-70">
+</div>
               {SERVICES.map((service) => (
                 <ServiceCard
                   key={service.id}
