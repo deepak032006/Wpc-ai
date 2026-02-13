@@ -4,51 +4,51 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const workingData = [
-  {
-    heading: "Complete your profile",
-    explanation:
-      "Fill in your personal, professional, and employment details. Upload your CV and a short introduction video.",
-  },
-  {
-    heading: "Automated profile assessment",
-    explanation:
-      "Our system analyses your experience, role suitability, and sponsorship eligibility indicators (including SOC alignment).",
-  },
-  {
-    heading: "Readiness & eligibility review",
-    explanation:
-      "Your documents and information are reviewed for sponsorship readiness.",
-  },
-  {
-    heading: "Employer visibility",
-    explanation:
-      "Once approved, your profile becomes visible to licensed UK employers searching for suitable candidates.",
-  },
-  {
-    heading: "Receive interview requests",
-    explanation:
-      "Receive and manage interview requests from employers directly in your dashboard.",
-  },
-  {
-    heading: "Structured onboarding support",
-    explanation:
-      "If you receive an offer, our system automates the document collection and compliance files for your new role.",
-  },
-  {
-    heading: "Sponsorship transition support",
-    explanation:
-      "We guide the process required to transfer sponsorship to a new licensed employer.",
-  },
-  {
-    heading: "Ongoing compliance support",
-    explanation:
-      "We support compliance steps required by employers and sponsors to ensure records remain accurate and up to date.",
-  },
-  {
-    heading: "WPC Career Academy",
-    explanation:
-      "Access expert coaching, CV rewrites, and mock interviews to boost your sponsor-readiness and interview success rates.",
-  },
+    {
+        heading: "Create your employer profile",
+        explanation:
+            "Add your company details—we check your licence status automatically.",
+    },
+    {
+        heading: "Post a role in minutes",
+        explanation:
+            "Select a SOC code or job title. The system auto-generates a compliant job description, salary range, and skill criteria, which you can edit if needed.",
+    },
+    {
+        heading: "Get matched with the right candidates",
+        explanation:
+            "We match you with sponsor-ready candidates based on skills, experience, and visa status.",
+    },
+    {
+        heading: "Interview and shortlist in one place",
+        explanation:
+            "Book interviews directly. Our AI transcribes the call and summarizes key notes for your hiring team.",
+    },
+    {
+        heading: "Make offers and hire confidently",
+        explanation:
+            "Generate offer letters and confirm hires—you only pay when a candidate accepts.",
+    },
+    {
+        heading: "Automated onboarding",
+        explanation:
+            "The system instantly generates the Offer Letter, Employment Contract, and the 'CoS Data Pack' for your SMS.",
+    },
+    {
+        heading: "Sponsorship support",
+        explanation:
+            "We assist with CoS data, sponsor processes, and switching sponsorship where required.",
+    },
+    {
+        heading: "Zero-Risk Hire",
+        explanation:
+            "Make an offer through the platform. You only pay your fixed success fee once the candidate accepts.",
+    },
+    {
+        heading: "Stay compliant after hire",
+        explanation:
+            "Ongoing support available for sponsor record keeping duties, visa monitoring, HR compliance (WPC HRMS tools), and audits.",
+    },
 ];
 
 
@@ -108,7 +108,7 @@ const HowitWorks = ({ setIsIntro }) => {
                     </button>
 
                     <button className="bg-[#0852C9] hover:bg-[#0852C9]/90 text-white rounded-lg font-semibold py-3 px-9"onClick={()=>{
-                        router.push("/auth/login")
+                        router.push("/auth/candidate/login")
                     }}>
                         Get Started
                     </button>

@@ -55,7 +55,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Define public routes that don't require authentication
-  const publicRoutes = ["/auth/login", "/auth/register", "/welcome/forgot-password", "/welcome/change-password", "/welcome"];
+  const publicRoutes = ["/auth/login","/auth/candidate/login","/auth/employer/login", 
+    "/auth/register","/auth/employer/register","/auth/candidate/register", "/welcome/forgot-password",
+    "/welcome/forgot-password/employer","/welcome/forgot-password/candidate", "/welcome/change-password",
+     "/welcome/change-password/candidate","/welcome/change-password/employer","/welcome"];
   
   // Check if current path is public or onboarding
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
