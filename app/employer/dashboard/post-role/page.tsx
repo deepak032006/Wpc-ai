@@ -34,6 +34,7 @@ export type JobRoleType = {
   show_pay_by?: string;
   min_salary?: string;
   max_salary?: string;
+  amount?:string;
   minimum?: string;
   maximum?: string;
   job_rate?: string;

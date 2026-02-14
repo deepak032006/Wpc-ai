@@ -64,13 +64,51 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
     });
   };
 
-  const handleMinSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // const handleMinSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const inputValue = e.target.value;
+
+  //   if (inputValue === '') {
+  //     setFormData({
+  //       ...formData,
+  //       min_salary: '',
+  //     });
+  //     return;
+  //   }
+
+  //   const formattedValue = formatNumber(inputValue);
+
+  //   setFormData({
+  //     ...formData,
+  //     min_salary: formattedValue,
+  //   });
+  // };
+
+  // const handleMaxSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const inputValue = e.target.value;
+
+  //   if (inputValue === '') {
+  //     setFormData({
+  //       ...formData,
+  //       max_salary: '',
+  //     });
+  //     return;
+  //   }
+
+  //   const formattedValue = formatNumber(inputValue);
+
+  //   setFormData({
+  //     ...formData,
+  //     max_salary: formattedValue,
+  //   });
+  // };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
 
     if (inputValue === '') {
       setFormData({
         ...formData,
-        min_salary: '',
+        amount: '',
       });
       return;
     }
@@ -79,26 +117,7 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
 
     setFormData({
       ...formData,
-      min_salary: formattedValue,
-    });
-  };
-
-  const handleMaxSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputValue = e.target.value;
-
-    if (inputValue === '') {
-      setFormData({
-        ...formData,
-        max_salary: '',
-      });
-      return;
-    }
-
-    const formattedValue = formatNumber(inputValue);
-
-    setFormData({
-      ...formData,
-      max_salary: formattedValue,
+      amount: formattedValue,
     });
   };
 
@@ -113,23 +132,23 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
     if (!formData.job_type) validationErrors.push("Job type is required");
     if (!formData.benefits || formData.benefits.length === 0)
       validationErrors.push("At least one benefit is required");
-    if (!formData.job_pay_type)
-      validationErrors.push("Show pay by is required");
-    if (!formData.min_salary)
-      validationErrors.push("Minimum salary is required");
-    if (!formData.max_salary)
-      validationErrors.push("Maximum salary is required");
+    // if (!formData.min_salary)
+    //   validationErrors.push("Minimum salary is required");
+    // if (!formData.max_salary)
+    //   validationErrors.push("Maximum salary is required");
     if (!formData.job_post_date)
       validationErrors.push("Post date is required");
+    if (!formData.amount)
+      validationErrors.push("Amount is required");
     if (!formData.job_post_deadline)
       validationErrors.push("End date is required");
-    if (
-      formData.min_salary &&
-      formData.max_salary &&
-      Number(formData.max_salary) <= Number(formData.min_salary)
-    ) {
-      validationErrors.push("Maximum salary must be greater than minimum salary");
-    }
+    // if (
+    //   formData.min_salary &&
+    //   formData.max_salary &&
+    //   Number(formData.max_salary) <= Number(formData.min_salary)
+    // ) {
+    //   validationErrors.push("Maximum salary must be greater than minimum salary");
+    // }
 
 
     if (validationErrors.length > 0) {
@@ -137,14 +156,14 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
       return;
     }
 
-    if (
-      formData.min_salary &&
-      formData.max_salary &&
-      Number(formData.max_salary) <= Number(formData.min_salary)
-    ) {
-      toast.error("Maximum salary must be greater than minimum salary");
-      return;
-    }
+    // if (
+    //   formData.min_salary &&
+    //   formData.max_salary &&
+    //   Number(formData.max_salary) <= Number(formData.min_salary)
+    // ) {
+    //   toast.error("Maximum salary must be greater than minimum salary");
+    //   return;
+    // }
     
     setLoader(true);
 
@@ -157,9 +176,10 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
         job_location: formData.street_address,
         job_type_id: formData.job_type,
         benefits_ids: formData.benefits,
-        show_pay_by: formData.job_pay_type,
-        minimum: formData.min_salary,
-        maximum: formData.max_salary,
+        show_pay_by: "exact_amount",
+        minimum: 600,
+        maximum: 800,
+        amount:formData.amount,
         rate: "annual",
         status: "in_review",
         post_date: formData.job_post_date,
@@ -195,10 +215,10 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
 
         // Pay
         job_pay_type: apiData.show_pay_by,
-        min_salary: apiData.minimum,
-        max_salary: apiData.maximum,
+        // min_salary: "600",
+        // max_salary: "700",
         job_rate: apiData.rate,
-
+        amount: apiData.amount,
         // Benefits
         benefits: apiData.benefits?.map((b: any) => b.id),
         benefit_details: apiData.benefits,
@@ -294,12 +314,12 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
         </div>
 
         {/* Pay Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-[15px] md:text-[16px] font-medium text-[#111111]">
               Show pay by
             </label>
-            <select
+            {/* <select
               value={formData.job_pay_type || ""}
               onChange={(e) =>
                 setFormData({
@@ -314,12 +334,19 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
               <option value="exact_amount">Exact amount</option>
               <option value="starting_amount">Starting amount</option>
               <option value="maximum_amount">Maximum amount</option>
-            </select>
+            </select> */}
+            <input
+                type="text"
+                value={"Exact Amount"}
+                readOnly
+                placeholder="Pay Type"
+                className="pl-3 pr-3 w-full h-12.5 py-3.5 px-4 rounded-[9px] border border-[#D0D5DD] shadow-sm shadow-[#1018280D] text-[14px] md:text-[15px] text-[#667085] focus:outline-none focus:ring-2 focus:ring-[#0852C9]"
+              />
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-[15px] md:text-[16px] font-medium text-[#111111]">
-              Minimum
+              Amount
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600">
@@ -327,15 +354,15 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
               </span>
               <input
                 type="text"
-                value={formData.min_salary || ""}
-                onChange={handleMinSalaryChange}
+                value={formData.amount || ""}
+                onChange={handleAmountChange}
                 placeholder="0"
                 className="pl-7 pr-3 w-full h-12.5 py-3.5 px-4 rounded-[9px] border border-[#D0D5DD] shadow-sm shadow-[#1018280D] text-[14px] md:text-[15px] text-[#667085] focus:outline-none focus:ring-2 focus:ring-[#0852C9]"
               />
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
+          {/* <div className="flex flex-col gap-1">
             <label className="text-[15px] md:text-[16px] font-medium text-[#111111]">
               Maximum
             </label>
@@ -351,7 +378,7 @@ const Form3 = ({ formData, setFormData, benefits, step, setStep }: FormType) => 
                 className="pl-7 pr-3 w-full h-12.5 py-3.5 px-4 rounded-[9px] border border-[#D0D5DD] shadow-sm shadow-[#1018280D] text-[14px] md:text-[15px] text-[#667085] focus:outline-none focus:ring-2 focus:ring-[#0852C9]"
               />
             </div>
-          </div>
+          </div> */}
 
           <div className="flex flex-col gap-1">
             <label className="text-[15px] md:text-[16px] font-medium text-[#111111]">

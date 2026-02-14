@@ -14,11 +14,37 @@ import UploadResumeStep from '../_components/upload-resume-step';
 import AdditionalDocumentsStep from '../_components/additional-documents-form';
 import ReviewSubmitStep from '../_components/review-submit-step';
 import VisaStatus from '../_components/viss-status';
+import toast from 'react-hot-toast';
+import { get_target_roles } from '@/app/action/onboarding.action';
+
+interface TargetRole {
+  id: number;
+  name: string;
+}
 
 const OnboardingPage = () => {
 
   const { currentStep, _hasHydrated } = useOnboardingStore();
   const [isClient, setIsClient] = useState(false);
+
+  const [roles, setRoles] = useState<TargetRole[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      const res = await get_target_roles();
+
+      if (!res.success) {
+        toast.error(res.message);
+        return;
+      }
+
+      setRoles(res.data);
+      setLoading(false);
+    };
+
+    fetchRoles();
+  }, []);
 
   useEffect(() => {
     setIsClient(true);
@@ -40,7 +66,7 @@ const OnboardingPage = () => {
       case 'cv':
         return <UploadResumeStep />;
       case 'role':
-        return <SelectSectorStep/>;
+        return <SelectSectorStep roles={roles} setRoles={setRoles} loading={loading} setLoading={setLoading} />;
       case 'documents':
         return <AdditionalDocumentsStep />;
       case 'submit':

@@ -61,6 +61,7 @@ export interface OnboardingFormData {
   specialized_licenses?: File | null;
   training_certificates?: File | null;
   dbs_certificate?: File | null;
+  hcwvisa?:boolean;
   confirmAccuracy?: boolean;
   understandVerification?: boolean;
   agreeTerms?: boolean;

@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form';
 import { useOnboardingStore } from '@/app/store/onboardingStore';
 import { Upload, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AdditionalDocumentUpload from './BulkComponent';
+import BulkUpload from './BulkComponent';
 
 interface AdditionalDocumentsForm {
   qualification_documents?: File | null;
@@ -12,6 +14,7 @@ interface AdditionalDocumentsForm {
   specialized_licenses?: File | null;
   training_certificates?: File | null;
   dbs_certificate?: File | null;
+  hcwvisa?:false;
 }
 
 export default function AdditionalDocuments() {
@@ -22,6 +25,7 @@ export default function AdditionalDocuments() {
   const [licensesFileName, setLicensesFileName] = useState<string>('');
   const [trainingFileName, setTrainingFileName] = useState<string>('');
   const [dbsFileName, setDbsFileName] = useState<string>('');
+  const [hcwVisa, setHCWVISA] = useState<boolean>(formData.hcwvisa || false);
 
   // Track files in useState
   const [qualificationFile, setQualificationFile] = useState<File | null>(formData.qualification_documents || null);
@@ -36,21 +40,14 @@ export default function AdditionalDocuments() {
       english_language_documents: null,
       specialized_licenses: null,
       training_certificates: null,
-      dbs_certificate: null
+      dbs_certificate: null,
+      hcwvisa:false,
     }
   });
 
   const onSubmit = (data: AdditionalDocumentsForm) => {
-    if (!qualificationFile) {
-      toast.error('Qualifications document is required');
-      return;
-    }
-    if (!englishLangFile) {
-      toast.error('English Language document is required');
-      return;
-    }
-    if (!dbsFile) {
-      toast.error('DBS Certificate is required');
+    if (hcwVisa && !dbsFile) {
+      toast.error('DBS Certificate is required for Health and Care Work Visa');
       return;
     }
 
@@ -331,6 +328,24 @@ export default function AdditionalDocuments() {
             true
           )}
 
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hcwVisa}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setHCWVISA(checked);
+                  updateFormData({ hcwvisa: checked });
+                }}
+                className="w-5 h-5 text-primary border-[#C5C6C8] rounded focus:ring-primary"
+              />
+              <span className="text-[18px] text-[#111111] font-medium">
+                Health and Care Worker visa
+              </span>
+            </label>
+          </div>
+
           {uploadBoxSmall(
             'dbs-upload',
             'DBS Certificate',
@@ -340,7 +355,7 @@ export default function AdditionalDocuments() {
             setDbsFile,
             'dbs_certificate'
           )}
-
+            <BulkUpload/>
           <div className="flex justify-between gap-4 pt-6">
             <button
               type="button"
@@ -358,6 +373,7 @@ export default function AdditionalDocuments() {
           </div>
         </form>
       </div>
+    
     </div>
   );
 }

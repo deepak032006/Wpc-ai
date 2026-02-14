@@ -22,33 +22,32 @@ function PrimaryLoader() {
   );
 }
 
-export default function SelectTargetRolesStep() {
+export default function SelectTargetRolesStep({roles,setRoles,loading,setLoading}:{roles:TargetRole[],setRoles:(val:TargetRole[])=>void,loading:boolean,setLoading:(val:boolean)=>void}) {
   const { formData, updateFormData, nextStep, previousStep } =
     useOnboardingStore();
 
   // 🔹 UI-only multiple selection
   const [selectedRoles, setSelectedRoles] = useState<TargetRole[]>([]);
-  const [roles, setRoles] = useState<TargetRole[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const { handleSubmit, setValue } = useForm<TargetRolesForm>();
 
-  useEffect(() => {
-    const fetchRoles = async () => {
-      const res = await get_target_roles();
+ useEffect(() => {
+  const getSelectedRoles = async () => {
+    const rolesdata = Array.isArray(formData.target_roles) ? formData.target_roles : [formData.target_roles];
+    if (!rolesdata.length || !roles.length) setSelectedRoles([]);
+    else {
+      const rolemap = roles.filter((value) => 
+        rolesdata.includes(value.id)
+      );
+      setSelectedRoles(rolemap);
+    }
+  };
+  
+  getSelectedRoles();
+}, []);
 
-      if (!res.success) {
-        toast.error(res.message);
-        return;
-      }
-
-      setRoles(res.data);
-      setLoading(false);
-    };
-
-    fetchRoles();
-  }, []);
 
   const handleSelect = (role: TargetRole) => {
     let updated: TargetRole[];
@@ -60,8 +59,8 @@ export default function SelectTargetRolesStep() {
     }
 
     setSelectedRoles(updated);
-
     setValue('target_roles', role.id);
+    setSearchQuery('');
   };
 
   const onSubmit = (data: TargetRolesForm) => {
@@ -74,15 +73,19 @@ export default function SelectTargetRolesStep() {
       target_roles: data.target_roles,
     });
 
+    console.log(formData, data.target_roles)
+
     nextStep();
   };
+
+  // Filter roles based on search query
+  const filteredRoles = roles.filter((role) =>
+    role.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) {
     return <PrimaryLoader/>;
   }
-
-  const displayedRoles = roles.slice(0, 20);
-  const hasMore = roles.length > 20;
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-200px)] py-8">
@@ -100,36 +103,91 @@ export default function SelectTargetRolesStep() {
               Roles
             </label>
 
-            <div className="flex flex-wrap gap-3">
-              {displayedRoles.map((role) => {
-                const isSelected = selectedRoles.some(
-                  (r) => r.id === role.id
-                );
+            {/* Search Input with Dropdown */}
+            <div className="relative mb-4">
+              <input
+                type="text"
+                placeholder="Search roles..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowDropdown(true);
+                }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => {
+                  // Delay to allow click on dropdown items
+                  setTimeout(() => setShowDropdown(false), 300);
+                }}
+                className="w-full px-4 py-3 border border-[#E4E5E8] rounded-lg text-[14px] focus:outline-none focus:border-primary"
+              />
+              <svg
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#4D4D4D]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
 
-                return (
+              {/* Dropdown */}
+              {showDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E4E5E8] rounded-lg shadow-lg max-h-[300px] overflow-y-auto z-10">
+                  {filteredRoles.length > 0 ? (
+                    filteredRoles.map((role) => {
+                      const isSelected = selectedRoles.some(
+                        (r) => r.id === role.id
+                      );
+
+                      return (
+                        <button
+                          key={role.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelect(role);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-[14px] hover:bg-[#F5F5F5] transition-all ${
+                            isSelected ? 'bg-[#F0F7FF] text-primary font-medium' : 'text-[#201E1E]'
+                          }`}
+                        >
+                          {role.name}
+                          {isSelected && (
+                            <span className="ml-2 text-primary">✓</span>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="px-4 py-3 text-[14px] text-[#4D4D4D]">
+                      No roles found matching "{searchQuery}"
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Roles Display */}
+            <div className="flex flex-wrap gap-3">
+              {selectedRoles.length > 0 ? (
+                selectedRoles.map((role) => (
                   <button
                     key={role.id}
                     type="button"
                     onClick={() => handleSelect(role)}
-                    className={`px-4 py-2 rounded-full text-[14px] font-medium transition-all ${
-                      isSelected
-                        ? 'bg-primary text-white'
-                        : 'bg-[#EBEEF2] text-[#201E1E] hover:bg-[#E8E4ED]'
-                    }`}
+                    className="px-4 py-2 rounded-full text-[14px] font-medium transition-all bg-primary text-white"
                   >
                     {role.name}
                   </button>
-                );
-              })}
-              
-              {hasMore && (
-                <button
-                  type="button"
-                  onClick={() => setShowModal(true)}
-                  className="px-4 py-2 rounded-full text-[14px] font-medium bg-[#EBEEF2] text-[#201E1E] hover:bg-[#E8E4ED] transition-all"
-                >
-                  Read more...
-                </button>
+                ))
+              ) : (
+                <p className="text-[14px] text-[#4D4D4D]">
+                  No roles selected. Use the search bar to find and select roles.
+                </p>
               )}
             </div>
           </div>
@@ -152,59 +210,6 @@ export default function SelectTargetRolesStep() {
           </div>
         </form>
       </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-[14px] shadow-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-[22px] font-bold text-[#111]">All Roles</h3>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-[#4D4D4D] hover:text-[#111] text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="flex flex-wrap gap-3">
-                {roles.map((role) => {
-                  const isSelected = selectedRoles.some(
-                    (r) => r.id === role.id
-                  );
-
-                  return (
-                    <button
-                      key={role.id}
-                      type="button"
-                      onClick={() => handleSelect(role)}
-                      className={`px-4 py-2 rounded-full text-[14px] font-medium transition-all ${
-                        isSelected
-                          ? 'bg-primary text-white'
-                          : 'bg-[#EBEEF2] text-[#201E1E] hover:bg-[#E8E4ED]'
-                      }`}
-                    >
-                      {role.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="p-6 border-t">
-              <button
-                onClick={() => setShowModal(false)}
-                className="w-full bg-primary text-white py-3 rounded-lg font-semibold"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
   );
 }

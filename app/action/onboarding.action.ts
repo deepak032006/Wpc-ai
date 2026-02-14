@@ -327,10 +327,7 @@ function validatePayloadCandidate(data: OnboardingFormData): { valid: boolean; m
       return { valid: false, message: 'UK city is required for UK residents' };
     }
   }
-
-  if (!data.qualification_documents) return {valid: false, message: "Qualification Document is Required"};
-  if (!data.english_language_documents) return {valid: false, message: "English Language Document is Required"};
-  if (!data.dbs_certificate) return {valid: false, message: "DBS Certificate Document is Required"};
+  
   
   // Validate passport expiry
   if (!data.passport_expiry?.trim()) {

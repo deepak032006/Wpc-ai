@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { get_job_titles, send_offer } from '@/app/action/job_role.action';
 import { useParams } from 'next/navigation';
 
-const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", candidateId, roleId }) => {
+const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", candidateId, roleId, jrt }) => {
   const [step, setStep] = useState(1);
   const [jobTitles, setJobTitles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,15 +77,11 @@ const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", ca
   };
 
   const handleNext = () => {
-    if (!selectedJobTitle || !formData.salary || !formData.startDate || !formData.notes) {
+    if (!formData.salary || !formData.startDate) {
       toast.error("Please fill all required fields");
       return;
     }
     setStep(2);
-  };
-
-  const handleBack = () => {
-    setStep(1);
   };
 
   const handleEdit = () => {
@@ -98,7 +94,7 @@ const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", ca
     try {
       const offerData = {
         role: Number(id),
-        job_title: selectedJobTitle.id,
+        job_title: jrt.id,
         proposed_start_date: formData.startDate,
         annual_salary: Number(formData.salary),
         additional_note: formData.notes
@@ -199,23 +195,16 @@ const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", ca
                 <div className="relative">
                   <div 
                     className="w-full px-4 py-2.5 rounded-md border border-[#E8E4ED] text-[15px] text-[#383838] flex items-center justify-between cursor-pointer focus-within:ring-2 focus-within:ring-[#2563eb] focus-within:border-transparent"
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setIsDropdownOpen(!isDropdownOpen);
-                      }
-                    }}
                   >
-                    <span className={selectedJobTitle ? "text-[#383838]" : "text-gray-400"}>
-                      {selectedJobTitle ? selectedJobTitle.name : "Select a position"}
-                    </span>
-                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    <span className={jrt ? "text-[#383838]" : "text-gray-400"}>
+                      {jrt ? jrt.name : "Select a position"}
+                    </span>  
                   </div>
 
-                  {isDropdownOpen && (
+                  {/* {isDropdownOpen && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-[#E8E4ED] rounded-md shadow-lg max-h-[300px] overflow-hidden">
                       <div className="p-2 border-b border-[#E8E4ED]">
                         <div className="relative">
@@ -251,7 +240,7 @@ const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", ca
                         )}
                       </div>
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
 
@@ -283,7 +272,7 @@ const OfferModals = ({ isOpen, onClose, candidateName = "Alexandra Thompson", ca
 
               <div>
                 <label className="block text-[14px] font-medium text-[#111111] mb-2">
-                  Additional Notes
+                  Additional Notes (Optional)
                 </label>
                 <textarea
                   value={formData.notes}
