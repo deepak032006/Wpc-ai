@@ -30,7 +30,6 @@ const stepLabels: Record<OnboardingStep, string> = {
   company: 'Company',
   operations: 'Operations',
   support: 'Support',
-  complete: 'Complete',
 };
 
 export default function StepNavigation() {
