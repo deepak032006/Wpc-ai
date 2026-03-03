@@ -17,7 +17,7 @@ const Employer = () => {
 
       <div className="flex flex-col gap-3 font-inter py-3 border-b-2 border-[#C8CED5]">
         <h1 className="text-[19px] font-semibold">
-          Welcome to WPC Jobs
+          Welcome to WPC AI
         </h1>
 
         <p className="text-[#4D4D4D] text-[13px] leading-relaxed">
