@@ -1,28 +1,23 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Helper to check if JWT token is expired
+// Check if JWT token expired
 function isTokenExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const payload = JSON.parse(atob(token.split(".")[1]));
     if (!payload.exp) return true;
 
-    const expiryTime = payload.exp * 1000;
-    const currentTime = Date.now();
-
-    return currentTime >= expiryTime - 10000; // Refresh 10 seconds before expiry
-  } catch (error) {
-    console.error("Token decode error:", error);
+    const expiry = payload.exp * 1000;
+    return Date.now() >= expiry - 10000;
+  } catch {
     return true;
   }
 }
 
-// Helper to refresh access token
+// Refresh access token
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   try {
-    console.log("Middleware: Attempting to refresh token...");
-
-    const refreshResponse = await fetch(
+    const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL || "https://wpcapi.careerbandhu.in/"}api/auth/refresh/`,
       {
         method: "POST",
@@ -33,16 +28,11 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
       }
     );
 
-    if (refreshResponse.ok) {
-      const data = await refreshResponse.json();
-      console.log("Middleware: Token refreshed successfully");
-      return data.access;
-    }
+    if (!res.ok) return null;
 
-    console.error("Middleware: Refresh failed with status", refreshResponse.status);
-    return null;
-  } catch (error) {
-    console.error("Middleware: Token refresh error:", error);
+    const data = await res.json();
+    return data.access;
+  } catch {
     return null;
   }
 }
@@ -56,24 +46,21 @@ export async function middleware(request: NextRequest) {
 
   const publicRoutes = [
     "/auth/login",
+    "/auth/register",
     "/auth/candidate/login",
     "/auth/employer/login",
-    "/auth/register",
-    "/auth/employer/register",
     "/auth/candidate/register",
-    "/welcome/forgot-password",
-    "/welcome/forgot-password/employer",
-    "/welcome/forgot-password/candidate",
-    "/welcome/change-password",
-    "/welcome/change-password/candidate",
-    "/welcome/change-password/employer",
+    "/auth/employer/register",
     "/welcome",
+    "/welcome/forgot-password",
+    "/welcome/change-password",
   ];
 
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
-  const isOnboardingRoute = pathname.startsWith("/onboarding/");
+  const isPublicRoute = publicRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
 
-  // ===== HANDLE ROOT PATH FIRST =====
+  // ROOT HANDLING
   if (pathname === "/") {
     if (!accessToken || !userInfoCookie) {
       return NextResponse.redirect(new URL("/welcome", request.url));
@@ -82,100 +69,62 @@ export async function middleware(request: NextRequest) {
     try {
       const userInfo = JSON.parse(userInfoCookie);
 
-      if (!userInfo.onboarding) {
-        return NextResponse.redirect(
-          new URL(`/onboarding/${userInfo.role}`, request.url)
-        );
-      }
-
       return NextResponse.redirect(
         new URL(`/${userInfo.role}/dashboard`, request.url)
       );
-    } catch (error) {
-      const response = NextResponse.redirect(new URL("/welcome", request.url));
-      response.cookies.delete("access-token");
-      response.cookies.delete("refresh-token");
-      response.cookies.delete("user-info");
-      return response;
+    } catch {
+      const res = NextResponse.redirect(new URL("/welcome", request.url));
+      res.cookies.delete("access-token");
+      res.cookies.delete("refresh-token");
+      res.cookies.delete("user-info");
+      return res;
     }
   }
-  // ===== END ROOT PATH HANDLING =====
 
-  const needsRefresh = !accessToken || (accessToken && isTokenExpired(accessToken));
+  // TOKEN REFRESH
+  const needsRefresh = !accessToken || isTokenExpired(accessToken);
 
   if (needsRefresh && refreshToken && !isPublicRoute) {
-    console.log("Middleware: Access token missing or expired");
-
     const newAccessToken = await refreshAccessToken(refreshToken);
 
     if (newAccessToken) {
-      const response = NextResponse.next();
-      response.cookies.set("access-token", newAccessToken, {
+      const res = NextResponse.next();
+
+      res.cookies.set("access-token", newAccessToken, {
         path: "/",
+        httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
         maxAge: 60 * 60 * 24,
       });
 
-      console.log("Middleware: Proceeding with refreshed token");
-      return response;
-    } else {
-      console.error("Middleware: Refresh failed, redirecting to login");
-
-      const welcomeUrl = new URL("/welcome", request.url);
-      welcomeUrl.searchParams.set("redirect", pathname);
-      const response = NextResponse.redirect(welcomeUrl);
-
-      response.cookies.delete("access-token");
-      response.cookies.delete("refresh-token");
-      response.cookies.delete("user-info");
-
-      return response;
+      return res;
     }
+
+    const welcomeUrl = new URL("/welcome", request.url);
+    welcomeUrl.searchParams.set("redirect", pathname);
+
+    const res = NextResponse.redirect(welcomeUrl);
+
+    res.cookies.delete("access-token");
+    res.cookies.delete("refresh-token");
+    res.cookies.delete("user-info");
+
+    return res;
   }
 
+  // NOT LOGGED IN
   if (!accessToken && !refreshToken) {
     if (!isPublicRoute) {
       const welcomeUrl = new URL("/welcome", request.url);
       welcomeUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(welcomeUrl);
     }
-    return NextResponse.next();
   }
 
-  let userInfo;
-  try {
-    userInfo = userInfoCookie ? JSON.parse(userInfoCookie) : null;
-  } catch (error) {
-    const response = NextResponse.redirect(new URL("/welcome", request.url));
-    response.cookies.delete("access-token");
-    response.cookies.delete("refresh-token");
-    response.cookies.delete("user-info");
-    return response;
-  }
-
-  if (userInfo) {
-    const isDashboardRoute = pathname.startsWith(`/${userInfo.role}/dashboard`);
-
-    // 🔹 Only change: dashboard route excluded from onboarding redirect
-    if (!userInfo.onboarding && !isOnboardingRoute && !isDashboardRoute) {
-      const roleOnboardingUrl = new URL(
-        `/onboarding/${userInfo.role}`,
-        request.url
-      );
-      return NextResponse.redirect(roleOnboardingUrl);
-    }
-
-    if (userInfo.onboarding && isOnboardingRoute) {
-      return NextResponse.redirect(
-        new URL(`/${userInfo.role}/dashboard/`, request.url)
-      );
-    }
-
-    if (isPublicRoute) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  // Logged-in users shouldn't access public routes
+  if (accessToken && isPublicRoute) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();

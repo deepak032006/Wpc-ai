@@ -24,7 +24,7 @@ const Sidebar = () => {
   const routes = [
     { id: 1, name: 'Dashboard', route: '/employer/dashboard', icon: LayoutDashboard },
     { id: 3, name: 'Post Compliance', route: '/employer/dashboard/post-role', icon: Briefcase },
-    { id: 2, name: 'HR Validation', route: '/employer/dashboard/hr-validation', icon: Users },
+    { id: 2, name: 'HR Validation', route: '/employer/sections/hr-validation', icon: Users },
     { id: 4, name: 'Call Agents', route: '/employer/dashboard/call-agents', icon: CalendarCheck },
     { id: 5, name: 'Staff List', route: '/employer/dashboard/staff-list', icon: CalendarCheck },
     { id: 6, name: 'Records', route: '/employer/dashboard/records', icon: User2 },
