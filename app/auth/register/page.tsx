@@ -53,7 +53,7 @@ const RegisterPage = () => {
       console.log("Response: ",result)
       if (result.success) {
         toast.success(result.message);
-        router.push(`/onboarding/${result.data?.role}`);
+         router.push('/employer/dashboard');
       } else {
         toast.error(result.message);
       }

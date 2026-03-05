@@ -129,7 +129,7 @@ export default function Login() {
                     <button
                         type="button"
                         className="text-[#0852C9] hover:underline"
-                        onClick={() => router.push("/onboarding/employer")}
+                        onClick={() => router.push("/employer/dashboard") }
                     >
                         Create Account
                     </button>

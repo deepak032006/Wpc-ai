@@ -1,0 +1,423 @@
+'use client';
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+
+const tabs = [
+  { label: "Staff List", id: "staff" },
+  { label: "1. RTW Compliance", id: "rtw" },
+  { label: "2. Pension", id: "pension" },
+  { label: "3. Authorising Officer", id: "auth" },
+  { label: "4. Contracts", id: "contracts" },
+  { label: "5. Financial", id: "financial" },
+  { label: "6. Summary", id: "summary" },
+];
+
+const getProgress = () => {
+  try { return JSON.parse(sessionStorage.getItem("hr_progress") || "{}"); } catch { return {}; }
+};
+
+const markComplete = (key) => {
+  try {
+    const p = getProgress();
+    sessionStorage.setItem("hr_progress", JSON.stringify({ ...p, [key]: true }));
+  } catch {}
+};
+
+const isTabUnlocked = (tabId) => {
+  if (["staff", "rtw", "pension", "auth", "contracts"].includes(tabId)) return true;
+  const p = getProgress();
+  if (tabId === "financial") return p.contracts;
+  if (tabId === "summary") return p.financial;
+  return false;
+};
+
+
+
+const B2BIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="1" y="2" width="16" height="14" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
+    <path d="M1 7h16M5 2v5M13 2v5" stroke="#374151" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const ContractFileIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="3" y="1" width="14" height="18" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
+    <path d="M6 7h8M6 10h8M6 13h5" stroke="#374151" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+);
+
+const GreenCheck = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <circle cx="9" cy="9" r="8" stroke="#16A34A" strokeWidth="1.4" fill="none" />
+    <path d="M5.5 9l2.5 2.5L12.5 6" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const YellowWarn = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M9 2L1.5 15.5h15L9 2z" stroke="#D97706" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+    <path d="M9 8v3M9 13v.5" stroke="#D97706" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M12 18V8M12 8l-4 4M12 8l4 4" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 20h16" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+
+
+function getContractStatus(contract) {
+  if (contract.exists === "yes" && contract.aligns === "yes") return "pass";
+  if (contract.exists === "no" || contract.aligns === "no") return "fail";
+  return "pending";
+}
+
+function getSummary(contracts) {
+  let passed = 0, failed = 0;
+  contracts.forEach(c => {
+    const s = getContractStatus(c);
+    if (s === "pass") passed++;
+    else if (s === "fail") failed++;
+  });
+  return { passed, failed, requireAction: 0 };
+}
+
+
+
+function TopNav({ onBack, onTabClick }) {
+  return (
+    <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M13 15L8 10L13 5" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <div>
+          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>HR Records Validation</h1>
+          <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "1px" }}>V.03</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "6px", marginTop: "10px", paddingBottom: "12px", overflowX: "auto" }}>
+        {tabs.map((tab) => {
+          const isActive = tab.id === "contracts";
+          const unlocked = isTabUnlocked(tab.id);
+          return (
+            <button key={tab.id} onClick={() => onTabClick(tab.id)} style={{
+              padding: "6px 16px", borderRadius: "20px",
+              border: isActive ? "none" : "1.5px solid #D1D5DB",
+              cursor: unlocked && !isActive ? "pointer" : "default",
+              fontSize: "13px", fontWeight: isActive ? "600" : "400",
+              color: isActive ? "white" : "#374151",
+              backgroundColor: isActive ? "#0852C9" : "white",
+              whiteSpace: "nowrap", transition: "all 0.15s",
+              boxShadow: isActive ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
+            }}>{tab.label}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+
+function AddContractForm({ onAdd, onCancel }) {
+  const [clientName, setClientName] = useState("");
+  const [exists, setExists] = useState(null);
+  const [aligns, setAligns] = useState(null);
+  const [fileName, setFileName] = useState(null);
+  const inputRef = useRef();
+
+  const canAdd = clientName.trim() && exists;
+  const showAligns = exists === "yes";
+  const showUpload = exists === "yes";
+
+  const handleAdd = () => {
+    if (!canAdd) return;
+    onAdd({
+      id: Date.now(),
+      clientName: clientName.trim(),
+      exists,
+      aligns: exists === "no" ? "no" : aligns,
+      document: fileName,
+    });
+  };
+
+  const RadioRow = ({ value, selected, onChange, label }) => (
+    <div
+      onClick={() => onChange(value)}
+      style={{
+        display: "flex", alignItems: "center", gap: "12px",
+        padding: "14px 16px", borderRadius: "8px", marginBottom: "8px",
+        border: `1.5px solid ${selected === value ? "#0852C9" : "#E2E8F0"}`,
+        backgroundColor: selected === value ? "#F0F6FF" : "white",
+        cursor: "pointer",
+      }}
+    >
+      <div style={{
+        width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
+        border: `2px solid ${selected === value ? "#0852C9" : "#D1D5DB"}`,
+        backgroundColor: selected === value ? "#0852C9" : "white",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {selected === value && <div style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: "white" }} />}
+      </div>
+      <span style={{ fontSize: "13.5px", color: "#0F172A" }}>{label}</span>
+    </div>
+  );
+
+  return (
+    <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "24px 26px", marginBottom: "14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+        <ContractFileIcon />
+        <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>Add Client Contract</h3>
+      </div>
+
+     
+      <div style={{ marginBottom: "18px" }}>
+        <label style={lbl}>Client / Company Name</label>
+        <input
+          type="text"
+          value={clientName}
+          onChange={(e) => setClientName(e.target.value)}
+          placeholder="Enter client or company name"
+          style={inputStyle}
+        />
+      </div>
+
+    
+      <div style={{ marginBottom: "18px" }}>
+        <label style={{ ...lbl, marginBottom: "10px" }}>Does the contract exist?</label>
+        <RadioRow value="yes" selected={exists} onChange={setExists} label="Yes, contract exists" />
+        <RadioRow value="no" selected={exists} onChange={setExists} label="No contract on file" />
+      </div>
+
+     
+      {showAligns && (
+        <div style={{ marginBottom: "18px" }}>
+          <label style={{ ...lbl, marginBottom: "10px" }}>Does the contract align with business activity?</label>
+          <RadioRow value="yes" selected={aligns} onChange={setAligns} label="Yes, aligns with business activity" />
+          <RadioRow value="no" selected={aligns} onChange={setAligns} label="No, does not align" />
+        </div>
+      )}
+
+    
+      {showUpload && (
+        <div style={{ marginBottom: "20px" }}>
+          <label style={lbl}>Upload Contract Document (Optional)</label>
+          <input ref={inputRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={(e) => setFileName(e.target.files?.[0]?.name || null)} />
+          <div
+            onClick={() => inputRef.current?.click()}
+            style={{
+              border: "1.5px dashed #D1D5DB", borderRadius: "8px", padding: "24px 20px",
+              textAlign: "center", cursor: "pointer", backgroundColor: "#F9FAFB",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}><UploadIcon /></div>
+            <p style={{ margin: 0, fontSize: "13px", color: "#9CA3AF" }}>{fileName || "Upload contract PDF"}</p>
+          </div>
+        </div>
+      )}
+
+     
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <button onClick={onCancel} style={cancelBtn}>Cancel</button>
+        <button
+          onClick={handleAdd}
+          disabled={!canAdd}
+          style={{ ...primaryBtn, opacity: canAdd ? 1 : 0.5, cursor: canAdd ? "pointer" : "not-allowed" }}
+        >
+          Add Contract
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+export default function ContractsPage() {
+  const router = useRouter();
+  const [contracts, setContracts] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+
+  const handleTabClick = (tabId) => {
+    if (tabId === "contracts") return;
+    const routes = {
+      staff: "/employer/sections/hr-validation",
+      rtw: "/employer/sections/hr-validation/rtw-compliance",
+      pension: "/employer/sections/hr-validation/pension",
+      auth: "/employer/sections/hr-validation/authorising-officer",
+      financial: "/employer/sections/hr-validation/financial",
+      summary: "/employer/sections/hr-validation/summary",
+    };
+    if (!isTabUnlocked(tabId)) return;
+    if (routes[tabId]) router.push(routes[tabId]);
+  };
+
+  const handleAddContract = (contract) => {
+    setContracts(prev => [...prev, contract]);
+    setShowForm(false);
+  };
+
+  const handleContinue = () => {
+    markComplete("contracts");
+    router.push("/employer/sections/financial");
+  };
+
+  const summary = getSummary(contracts);
+  const hasContracts = contracts.length > 0;
+  const allValid = summary.failed === 0 && hasContracts;
+  const hasIssues = summary.failed > 0;
+  const canContinue = hasContracts;
+
+  return (
+    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F1F5F9", minHeight: "100vh" }}>
+
+      <TopNav onBack={() => router.back()} onTabClick={handleTabClick} />
+
+      <div style={{ maxWidth: "860px", margin: "30px auto", padding: "0 24px" }}>
+
+      
+        <div style={{ marginBottom: "20px" }}>
+          <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#0F172A", letterSpacing: "-0.3px" }}>
+            Workflow 4: Client Contract Validation
+          </h2>
+          <p style={{ margin: "6px 0 0", fontSize: "13.5px", color: "#64748B" }}>
+            Verify client contracts for B2B or service-based business activities
+          </p>
+        </div>
+
+       
+        <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "16px 20px", marginBottom: "14px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+          <B2BIcon />
+          <div>
+            <div style={{ fontSize: "14px", fontWeight: "700", color: "#0F172A" }}>B2B / Service-Based Business</div>
+            <div style={{ fontSize: "13px", color: "#64748B", marginTop: "3px" }}>Add all client contracts to verify existence and alignment with business activity.</div>
+          </div>
+        </div>
+
+       
+        {hasContracts && (
+          <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "20px 24px", marginBottom: "14px" }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: "15px", fontWeight: "700", color: "#0F172A" }}>Added Contracts</h3>
+            {/* Table Header */}
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 1fr 1fr", padding: "0 4px 10px", borderBottom: "1px solid #F1F5F9" }}>
+              {["Client Name", "Contract Exists", "Aligns with Activity", "Document", "Status"].map(h => (
+                <div key={h} style={{ fontSize: "12.5px", color: "#94A3B8", fontWeight: "500" }}>{h}</div>
+              ))}
+            </div>
+           
+            {contracts.map((c) => {
+              const status = getContractStatus(c);
+              return (
+                <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 1fr 1fr", padding: "13px 4px", borderBottom: "1px solid #F8FAFC", alignItems: "center" }}>
+                  <div style={{ fontSize: "14px", color: "#0F172A", fontWeight: "500" }}>{c.clientName}</div>
+                  <div>{c.exists === "yes" ? <GreenCheck /> : <YellowWarn />}</div>
+                  <div>{c.aligns === "yes" ? <GreenCheck /> : c.aligns === "no" ? <YellowWarn /> : <span style={{ color: "#94A3B8" }}>—</span>}</div>
+                  <div style={{ fontSize: "14px", color: "#94A3B8" }}>{c.document ? "✓" : "—"}</div>
+                  <div>
+                    {status === "pass" ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", backgroundColor: "#0852C9", color: "white" }}>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="white" strokeWidth="1.2" fill="none" /><path d="M3.5 6l2 2L8.5 4" stroke="white" strokeWidth="1.2" strokeLinecap="round" /></svg>
+                        Pass
+                      </span>
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", backgroundColor: "#DC2626", color: "white" }}>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5L1 10h10L6 1.5z" stroke="white" strokeWidth="1.1" fill="none" /><path d="M6 5.5v2M6 9v.3" stroke="white" strokeWidth="1" strokeLinecap="round" /></svg>
+                        Fail
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      
+        {showForm ? (
+          <AddContractForm
+            onAdd={handleAddContract}
+            onCancel={() => setShowForm(false)}
+          />
+        ) : (
+          <button
+            onClick={() => setShowForm(true)}
+            style={{
+              width: "100%", padding: "14px", backgroundColor: "white",
+              border: "1.5px solid #E2E8F0", borderRadius: "10px",
+              fontSize: "14px", fontWeight: "500", color: "#374151",
+              cursor: "pointer", display: "flex", alignItems: "center",
+              justifyContent: "center", gap: "8px", marginBottom: "14px",
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>+</span> Add Client Contract
+          </button>
+        )}
+
+       
+        {hasContracts && !showForm && (
+          <div style={{
+            backgroundColor: "white", borderRadius: "10px",
+            border: `1.5px solid ${hasIssues ? "#FCA5A5" : "#E2E8F0"}`,
+            padding: "16px 20px", marginBottom: "14px",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "#0F172A" }}>Contract Validation Summary</div>
+              <div style={{ fontSize: "13px", color: "#64748B", marginTop: "3px" }}>
+                {summary.passed} passed, {summary.failed} failed, {summary.requireAction} require action
+              </div>
+            </div>
+            <span style={{
+              padding: "5px 14px", borderRadius: "20px", fontSize: "12.5px", fontWeight: "700",
+              backgroundColor: hasIssues ? "#DC2626" : "#0852C9",
+              color: "white",
+            }}>
+              {hasIssues ? "Issues Found" : "All Valid"}
+            </span>
+          </div>
+        )}
+
+    
+        <button
+          onClick={canContinue ? handleContinue : undefined}
+          style={{
+            width: "100%", padding: "14px", backgroundColor: "#0852C9",
+            color: "white", border: "none", borderRadius: "8px",
+            fontSize: "14px", fontWeight: "600",
+            cursor: canContinue ? "pointer" : "not-allowed",
+            opacity: canContinue ? 1 : 0.5,
+            marginBottom: "16px",
+          }}
+        >
+          Continue to Financial Viability Check
+        </button>
+
+     
+        <button
+          onClick={() => router.push("/employer/sections/hr-validation/authorising-officer")}
+          style={{
+            padding: "10px 20px", backgroundColor: "white", color: "#374151",
+            border: "1.5px solid #D1D5DB", borderRadius: "8px",
+            fontSize: "14px", fontWeight: "500", cursor: "pointer",
+          }}
+        >
+          Back to AO Assessment
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const lbl = { display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" };
+const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1.5px solid #D1D5DB", fontSize: "14px", outline: "none", boxSizing: "border-box", color: "#0F172A", backgroundColor: "white" };
+const cancelBtn = { padding: "11px 20px", borderRadius: "8px", border: "1.5px solid #D1D5DB", backgroundColor: "white", fontSize: "14px", fontWeight: "500", cursor: "pointer", color: "#374151" };
+const primaryBtn = { padding: "11px 20px", borderRadius: "8px", border: "none", backgroundColor: "#0852C9", color: "white", fontSize: "14px", fontWeight: "600" };

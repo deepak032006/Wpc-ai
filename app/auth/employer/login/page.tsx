@@ -34,7 +34,7 @@ const LoginPage = () => {
       if (result.success && result.data) {
         // Check if user needs onboarding
         if (!result.data.onboarding) {
-          router.push(`/onboarding/${result.data.role}`);
+          router.push('/employer/dashboard');
         } else {
           // Redirect to employer dashboard
           router.push('/employer/dashboard');
