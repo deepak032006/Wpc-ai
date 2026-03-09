@@ -18,7 +18,7 @@ function isTokenExpired(token: string): boolean {
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "https://wpcapi.careerbandhu.in/"}api/auth/refresh/`,
+      `${process.env.NEXT_PUBLIC_API_URL || "https://wpc.onrender.com/"}api/v1/accounts/token/refresh/`,
       {
         method: "POST",
         headers: {
@@ -31,7 +31,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
     if (!res.ok) return null;
 
     const data = await res.json();
-    return data.access;
+    return data.access ?? data.token ?? null;
   } catch {
     return null;
   }
@@ -68,9 +68,10 @@ export async function middleware(request: NextRequest) {
 
     try {
       const userInfo = JSON.parse(userInfoCookie);
-
+      // ✅ fallback to "employer" agar role missing ho
+      const role = userInfo.role || "employer";
       return NextResponse.redirect(
-        new URL(`/${userInfo.role}/dashboard`, request.url)
+        new URL(`/${role}/dashboard`, request.url)
       );
     } catch {
       const res = NextResponse.redirect(new URL("/welcome", request.url));
@@ -92,7 +93,7 @@ export async function middleware(request: NextRequest) {
 
       res.cookies.set("access-token", newAccessToken, {
         path: "/",
-        httpOnly: true,
+        httpOnly: false, // ✅ false — taaki client bhi read kar sake
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
         maxAge: 60 * 60 * 24,
@@ -113,7 +114,7 @@ export async function middleware(request: NextRequest) {
     return res;
   }
 
-  // NOT LOGGED IN
+  // No tokens at all → redirect to welcome
   if (!accessToken && !refreshToken) {
     if (!isPublicRoute) {
       const welcomeUrl = new URL("/welcome", request.url);
@@ -122,7 +123,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Logged-in users shouldn't access public routes
+  // Logged-in users shouldn't access public routes → bounce to their dashboard
+  // ✅ redirect to / which then goes to /{role}/dashboard
   if (accessToken && isPublicRoute) {
     return NextResponse.redirect(new URL("/", request.url));
   }

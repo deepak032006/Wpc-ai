@@ -1,7 +1,43 @@
 'use client';
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {
+  listEmployeesAction,
+  addEmployeeAction,
+  createHRValidationRecordAction,
+  listHRValidationRecordsAction,
+  type Employee,
+} from "@/app/employer/sections/action/action";
+
+
+
+type ManualForm = { name: string; nationality: string; startDate: string };
+type RTWForm = {
+  name: string;
+  nationality: string;
+  startDate: string;
+  documentType: string;
+  documentNumber: string;
+  expiryDate: string;
+  dob: string;
+  file: File | null;
+  fileUrl: string;
+};
+
+
+
+function getClientToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("access-token="));
+  if (!match) return "";
+  const raw = decodeURIComponent(match.split("=").slice(1).join("="));
+  return raw.replace(/\s+/g, "").replace(/^(Bearer|Token)\s*/i, "");
+}
+
+
 
 const tabs = [
   { label: "Staff List", id: "staff" },
@@ -13,7 +49,7 @@ const tabs = [
   { label: "6. Summary", id: "summary" },
 ];
 
-const TAB_ROUTES = {
+const TAB_ROUTES: Record<string, string> = {
   rtw: "/employer/sections/rtw-compliance",
   pension: "/employer/sections/hr-validation/pension",
   auth: "/employer/sections/hr-validation/authorising-officer",
@@ -21,6 +57,49 @@ const TAB_ROUTES = {
   financial: "/employer/sections/hr-validation/financial",
   summary: "/employer/sections/hr-validation/summary",
 };
+
+
+
+const lbl: React.CSSProperties = {
+  display: "block",
+  fontSize: "13px",
+  fontWeight: "500",
+  color: "#374151",
+  marginBottom: "6px",
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: "8px",
+  border: "1.5px solid #D1D5DB",
+  fontSize: "14px",
+  outline: "none",
+  boxSizing: "border-box",
+  color: "#0F172A",
+  backgroundColor: "white",
+};
+const cancelBtn: React.CSSProperties = {
+  padding: "11px 20px",
+  borderRadius: "8px",
+  border: "1.5px solid #D1D5DB",
+  backgroundColor: "white",
+  fontSize: "14px",
+  fontWeight: "500",
+  cursor: "pointer",
+  color: "#374151",
+};
+const primaryBtn: React.CSSProperties = {
+  padding: "11px 20px",
+  borderRadius: "8px",
+  border: "none",
+  backgroundColor: "#0852C9",
+  color: "white",
+  fontSize: "14px",
+  fontWeight: "600",
+  cursor: "pointer",
+};
+
+
 
 const UserAvatar = ({ size = 48, color = "#9CA3AF" }) => (
   <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
@@ -36,137 +115,166 @@ const ClockIcon = () => (
   </svg>
 );
 
-const UploadIcon = ({ color = "#64748B" }) => (
-  <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-    <path d="M19 27V13M19 13l-7 7M19 13l7 7" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M7 29h24" stroke={color} strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-
-const SpinnerIcon = () => (
+const SpinnerIcon = ({ color = "#0852C9" }: { color?: string }) => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ animation: "spin 1s linear infinite" }}>
     <circle cx="10" cy="10" r="8" stroke="#CBD5E1" strokeWidth="2.5" />
-    <path d="M10 2a8 8 0 018 8" stroke="#0852C9" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M10 2a8 8 0 018 8" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
     <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
   </svg>
 );
 
-const CheckIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <circle cx="8" cy="8" r="7" fill="#10B981" />
-    <path d="M5 8l2.5 2.5L11 5.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const FileIcon = () => (
-  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-    <rect x="4" y="2" width="16" height="22" rx="2" fill="#EFF6FF" stroke="#0852C9" strokeWidth="1.5" />
-    <path d="M4 8h16M8 13h8M8 17h5" stroke="#0852C9" strokeWidth="1.2" strokeLinecap="round" />
-  </svg>
-);
 
 
-
-async function extractRTWDataWithAI(file) {
-  const toBase64 = (f) =>
-    new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(",")[1]);
-      r.onerror = () => rej(new Error("Read failed"));
-      r.readAsDataURL(f);
-    });
-
-  const isImage = file.type.startsWith("image/");
-  const isPDF = file.type === "application/pdf";
-
-  let messageContent;
-  if (isImage) {
-    const base64 = await toBase64(file);
-    messageContent = [
-      { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
-      { type: "text", text: `Extract RTW document details and return ONLY valid JSON:\n{"fullName":"","nationality":"","documentType":"","documentNumber":"","expiryDate":"YYYY-MM-DD","dob":"YYYY-MM-DD"}` },
-    ];
-  } else if (isPDF) {
-    const base64 = await toBase64(file);
-    messageContent = [
-      { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-      { type: "text", text: `Extract RTW document details and return ONLY valid JSON:\n{"fullName":"","nationality":"","documentType":"","documentNumber":"","expiryDate":"YYYY-MM-DD","dob":"YYYY-MM-DD"}` },
-    ];
-  } else {
-    throw new Error("Unsupported file type.");
-  }
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+async function uploadFileToR2(file: File): Promise<string> {
+  const presignRes = await fetch("/api/upload-presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: messageContent }] }),
+    body: JSON.stringify({ fileName: file.name, fileType: file.type }),
   });
 
-  if (!response.ok) throw new Error("AI extraction failed");
-  const data = await response.json();
-  const text = data.content?.map((b) => b.text || "").join("") || "";
-  return JSON.parse(text.replace(/```json|```/g, "").trim());
+  if (!presignRes.ok) {
+    const err = await presignRes.json().catch(() => ({}));
+    throw new Error(err.error || "Presigned URL could not be generated");
+  }
+
+  const { presignedUrl, publicUrl } = await presignRes.json();
+
+  const uploadRes = await fetch(presignedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error(`R2 upload failed (${uploadRes.status})`);
+  }
+
+  return publicUrl;
 }
 
 
 
-function RTWUploadArea({ onExtracted, onFileChange }) {
+function RTWUploadArea({
+  onFileChange,
+}: {
+  onFileChange: (file: File | null, url?: string | null) => void;
+}) {
   const [dragOver, setDragOver] = useState(false);
-  const [file, setFile] = useState(null);
-  const [status, setStatus] = useState("idle");
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const inputRef = useRef();
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const processFile = useCallback(async (f) => {
-    const allowed = ["image/jpeg", "image/png", "image/jpg", "application/pdf"];
-    if (!allowed.includes(f.type)) { setErrorMsg("Only PDF, JPG or PNG supported."); setStatus("error"); return; }
-    if (f.size > 10 * 1024 * 1024) { setErrorMsg("File must be under 10MB."); setStatus("error"); return; }
-    setFile(f); onFileChange(f); setStatus("extracting"); setErrorMsg("");
-    try {
-      const extracted = await extractRTWDataWithAI(f);
-      onExtracted(extracted); setStatus("done");
-    } catch (e) {
-      setErrorMsg(e.message || "Extraction failed. Fill in details manually."); setStatus("error");
-    }
-  }, [onExtracted, onFileChange]);
+  const processFile = useCallback(
+    async (f: File) => {
+      const allowed = ["image/jpeg", "image/png", "image/jpg", "application/pdf"];
+
+      if (!allowed.includes(f.type)) {
+        setErrorMsg("Only PDF, JPG or PNG supported.");
+        setStatus("error");
+        return;
+      }
+
+      if (f.size > 10 * 1024 * 1024) {
+        setErrorMsg("File must be under 10MB.");
+        setStatus("error");
+        return;
+      }
+
+      setFile(f);
+      setStatus("uploading");
+      setErrorMsg("");
+
+      try {
+        const uploadedUrl = await uploadFileToR2(f);
+        onFileChange(f, uploadedUrl);
+        setStatus("done");
+      } catch (e: any) {
+        setErrorMsg(e.message || "Upload failed.");
+        setStatus("error");
+        onFileChange(f, null);
+      }
+    },
+    [onFileChange]
+  );
 
   const removeFile = () => {
-    setFile(null); setStatus("idle"); setErrorMsg("");
-    onFileChange(null); onExtracted({});
+    setFile(null);
+    setStatus("idle");
+    setErrorMsg("");
+    onFileChange(null, null);
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) processFile(dropped);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) processFile(selected);
   };
 
   return (
     <div>
-      <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
       {!file ? (
-        <div onClick={() => inputRef.current?.click()}
+        <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) processFile(f); }}
-          style={{ border: `2px dashed ${dragOver ? "#0852C9" : "#CBD5E1"}`, borderRadius: "10px", padding: "28px 20px", textAlign: "center", backgroundColor: dragOver ? "#EFF6FF" : "#F8FAFC", cursor: "pointer", transition: "all 0.2s" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}><UploadIcon color={dragOver ? "#0852C9" : "#64748B"} /></div>
-          <p style={{ margin: "0 0 3px", fontSize: "13.5px", fontWeight: "500", color: dragOver ? "#0852C9" : "#334155" }}>Drag and drop or click to upload</p>
-          <p style={{ margin: 0, fontSize: "12px", color: "#94A3B8" }}>PDF or Image files · Max 10MB</p>
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragOver ? "#0852C9" : "#CBD5E1"}`,
+            borderRadius: "10px",
+            padding: "32px 24px",
+            textAlign: "center",
+            cursor: "pointer",
+            backgroundColor: dragOver ? "#EFF6FF" : "#F8FAFC",
+            transition: "all 0.15s",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
+            <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+              <path d="M19 27V13M19 13l-7 7M19 13l7 7" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 29h24" stroke="#64748B" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p style={{ margin: 0, fontSize: "13.5px", fontWeight: "600", color: "#374151" }}>
+            Drop file here or <span style={{ color: "#0852C9" }}>browse</span>
+          </p>
+          <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#94A3B8" }}>PDF, JPG or PNG · Max 10MB</p>
+          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={handleInputChange} />
         </div>
       ) : (
-        <div style={{ border: "1.5px solid #E2E8F0", borderRadius: "10px", padding: "14px 16px", backgroundColor: "#F8FAFC", display: "flex", alignItems: "center", gap: "12px" }}>
-          <FileIcon />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "13.5px", fontWeight: "600", color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</div>
-            <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "2px" }}>{(file.size / 1024).toFixed(1)} KB</div>
+        <div style={{ border: "1.5px solid #E2E8F0", borderRadius: "10px", padding: "14px 16px", backgroundColor: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect x="4" y="2" width="16" height="22" rx="2" fill="#EFF6FF" stroke="#0852C9" strokeWidth="1.5" />
+              <path d="M4 8h16M8 13h8M8 17h5" stroke="#0852C9" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <div>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: "600", color: "#0F172A" }}>{file.name}</p>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748B" }}>
+                {(file.size / 1024).toFixed(1)} KB ·{" "}
+                {status === "uploading" && <span style={{ color: "#0852C9" }}>Uploading…</span>}
+                {status === "done" && <span style={{ color: "#10B981" }}>✓ Uploaded</span>}
+                {status === "error" && <span style={{ color: "#DC2626" }}>✗ {errorMsg}</span>}
+              </p>
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-            {status === "extracting" && <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#0852C9" }}><SpinnerIcon /> Extracting…</div>}
-            {status === "done" && <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#10B981" }}><CheckIcon /> Extracted</div>}
-            {status === "error" && <div style={{ fontSize: "12px", color: "#EF4444" }}>Failed</div>}
-            <button onClick={removeFile} style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: "50%", width: "24px", height: "24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", fontSize: "12px" }}>✕</button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {status === "uploading" && <SpinnerIcon />}
+            {status === "done" && (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" fill="#10B981" />
+                <path d="M5 8l2.5 2.5L11 5.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+            <button onClick={removeFile} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", fontSize: "16px", lineHeight: 1 }}>✕</button>
           </div>
-        </div>
-      )}
-      {status === "error" && (
-        <div style={{ marginTop: "8px", padding: "8px 12px", backgroundColor: "#FEF2F2", borderRadius: "7px", border: "1px solid #FECACA" }}>
-          <p style={{ margin: 0, fontSize: "12.5px", color: "#DC2626" }}>{errorMsg}</p>
         </div>
       )}
     </div>
@@ -177,81 +285,194 @@ function RTWUploadArea({ onExtracted, onFileChange }) {
 
 export default function HRRecordsValidation() {
   const router = useRouter();
-  const [employees, setEmployees] = useState([]);
+
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [hrRecordId, setHrRecordId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState("");
+
   const [showModal, setShowModal] = useState(false);
-  const [modalStep, setModalStep] = useState("choose");
-  const [manualForm, setManualForm] = useState({ name: "", nationality: "British/Irish", startDate: "" });
-  const [rtwForm, setRtwForm] = useState({ name: "", nationality: "", startDate: "", documentType: "", documentNumber: "", expiryDate: "", dob: "", file: null });
+  const [modalStep, setModalStep] = useState<"choose" | "manual" | "rtw">("choose");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  const migrantCount = employees.filter((e) => e.nationality === "Migrant").length;
-  const britishIrishCount = employees.filter((e) => e.nationality === "British/Irish").length;
+  const [manualForm, setManualForm] = useState<ManualForm>({ name: "", nationality: "British", startDate: "" });
+  const [rtwForm, setRtwForm] = useState<RTWForm>({
+    name: "", nationality: "", startDate: "",
+    documentType: "", documentNumber: "", expiryDate: "", dob: "",
+    file: null, fileUrl: "",
+  });
 
- 
-  const saveAndSet = (list) => {
-    setEmployees(list);
-    try { sessionStorage.setItem("hr_employees", JSON.stringify(list)); } catch {}
+  useEffect(() => { initHRRecord(); }, []);
+
+  async function initHRRecord() {
+    setLoading(true);
+    setApiError("");
+    try {
+      const token = getClientToken();
+      const listRes = await listHRValidationRecordsAction(token);
+
+      if (!listRes.success) {
+        setApiError(listRes.message);
+        setLoading(false);
+        return;
+      }
+
+      let recordId: number | null = null;
+
+      if (listRes.data && listRes.data.length > 0) {
+        recordId = listRes.data[0].id;
+      } else {
+        let userId: number | null = null;
+        try {
+          const raw = document.cookie
+            .split("; ")
+            .find((r) => r.startsWith("user-info="))
+            ?.split("=")
+            .slice(1)
+            .join("=");
+          if (raw) {
+            const parsed = JSON.parse(decodeURIComponent(raw));
+            userId = parsed?.id ?? null;
+          }
+        } catch { /* ignore */ }
+
+        if (!userId) {
+          setApiError("User session invalid. Please login again.");
+          setLoading(false);
+          return;
+        }
+
+        const createRes = await createHRValidationRecordAction(userId, token);
+        if (!createRes.success) {
+          setApiError(createRes.message);
+          setLoading(false);
+          return;
+        }
+        recordId = createRes.data?.id ?? null;
+      }
+
+      setHrRecordId(recordId);
+      if (recordId !== null) await loadEmployees(recordId, token);
+    } catch {
+      setApiError("Unexpected error initialising HR record.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadEmployees(recordId: number, token?: string) {
+    const t = token || getClientToken();
+    const res = await listEmployeesAction(recordId, t);
+    if (res.success && res.data) {
+      setEmployees(res.data);
+    } else {
+      setApiError(res.message);
+    }
+  }
+
+  const stats = {
+    total: employees.length,
+    migrant: employees.filter((e) =>
+      !["british", "irish", "british/irish"].includes(e.nationality?.toLowerCase() ?? "")
+    ).length,
+    british_irish: employees.filter((e) =>
+      ["british", "irish", "british/irish"].includes(e.nationality?.toLowerCase() ?? "")
+    ).length,
   };
 
-  const openModal = (step = "choose") => {
+  const handleManualAdd = async () => {
+    if (!manualForm.name.trim() || !manualForm.startDate || hrRecordId === null) return;
+    setSubmitting(true);
+    setSubmitError("");
+    const res = await addEmployeeAction(
+      {
+        employee_full_name: manualForm.name,
+        employment_start_date: manualForm.startDate,
+        nationality: manualForm.nationality,
+        HRValidationRecord_id: hrRecordId,
+      },
+      getClientToken()
+    );
+    if (res.success) {
+      setShowModal(false);
+      await loadEmployees(hrRecordId);
+    } else {
+      setSubmitError(res.message);
+    }
+    setSubmitting(false);
+  };
+
+  const handleRtwAdd = async () => {
+    if (!rtwForm.name.trim() || !rtwForm.startDate || hrRecordId === null) return;
+    setSubmitting(true);
+    setSubmitError("");
+    const res = await addEmployeeAction(
+      {
+        employee_full_name: rtwForm.name,
+        employment_start_date: rtwForm.startDate,
+        nationality: rtwForm.nationality || "Migrant",
+        HRValidationRecord_id: hrRecordId,
+        rtw_document_url: rtwForm.fileUrl || undefined,
+      },
+      getClientToken()
+    );
+    if (res.success) {
+      setShowModal(false);
+      await loadEmployees(hrRecordId);
+    } else {
+      setSubmitError(res.message);
+    }
+    setSubmitting(false);
+  };
+
+  const openModal = (step: "choose" | "manual" | "rtw" = "choose") => {
     setModalStep(step);
-    setManualForm({ name: "", nationality: "British/Irish", startDate: "" });
-    setRtwForm({ name: "", nationality: "", startDate: "", documentType: "", documentNumber: "", expiryDate: "", dob: "", file: null });
+    setSubmitError("");
+    setManualForm({ name: "", nationality: "British", startDate: "" });
+    setRtwForm({
+      name: "", nationality: "", startDate: "",
+      documentType: "", documentNumber: "", expiryDate: "", dob: "",
+      file: null, fileUrl: "",
+    });
     setShowModal(true);
   };
 
-  const manualFormValid = manualForm.name.trim() && manualForm.startDate;
-  const rtwFormValid = rtwForm.name.trim() && rtwForm.startDate;
-
-  const handleManualAdd = () => {
-    if (!manualFormValid) return;
-    saveAndSet([...employees, { id: Date.now(), name: manualForm.name, nationality: manualForm.nationality, startDate: manualForm.startDate, status: "Pending" }]);
-    setShowModal(false);
-  };
-
-  const handleRtwAdd = () => {
-    if (!rtwFormValid) return;
-    saveAndSet([...employees, { id: Date.now(), name: rtwForm.name, nationality: rtwForm.nationality || "Migrant", startDate: rtwForm.startDate, status: "Pending", documentType: rtwForm.documentType, documentNumber: rtwForm.documentNumber }]);
-    setShowModal(false);
-  };
-
-  const handleProceed = () => {
-    try { sessionStorage.setItem("hr_employees", JSON.stringify(employees)); } catch {}
-    router.push("/employer/sections/rtw-compliance");
-  };
-
-  
   const staffComplete = employees.length > 0;
 
   const getTabProgress = () => {
     try {
       const p = sessionStorage.getItem("hr_progress");
       return p ? JSON.parse(p) : {};
-    } catch { return {}; }
+    } catch {
+      return {};
+    }
   };
 
-  const isTabUnlocked = (tabId) => {
+  const isTabUnlocked = (tabId: string) => {
     if (tabId === "staff") return true;
     if (tabId === "rtw") return staffComplete;
-    const progress = getTabProgress();
-    if (tabId === "pension") return progress.rtw;
-    if (tabId === "auth") return progress.pension;
-    if (tabId === "contracts") return progress.auth;
-    if (tabId === "financial") return progress.contracts;
-    if (tabId === "summary") return progress.financial;
+    const p = getTabProgress();
+    if (tabId === "pension") return p.rtw;
+    if (tabId === "auth") return p.pension;
+    if (tabId === "contracts") return p.auth;
+    if (tabId === "financial") return p.contracts;
+    if (tabId === "summary") return p.financial;
     return false;
   };
 
-  const handleTabClick = (tabId) => {
-    if (tabId === "staff") return; 
-    if (!isTabUnlocked(tabId)) return; 
-    try { sessionStorage.setItem("hr_employees", JSON.stringify(employees)); } catch {}
+  const handleTabClick = (tabId: string) => {
+    if (tabId === "staff" || !isTabUnlocked(tabId)) return;
     if (TAB_ROUTES[tabId]) router.push(TAB_ROUTES[tabId]);
   };
+
+  const manualFormValid = manualForm.name.trim() && manualForm.startDate;
+  const rtwFormValid = rtwForm.name.trim() && rtwForm.startDate && rtwForm.file && rtwForm.fileUrl;
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F1F5F9", minHeight: "100vh" }}>
 
-      
+    
       <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
           <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
@@ -261,7 +482,9 @@ export default function HRRecordsValidation() {
           </button>
           <div>
             <h1 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>HR Records Validation</h1>
-            <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "1px" }}>V.03</div>
+            <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "1px" }}>
+              V.03{hrRecordId ? ` · Record #${hrRecordId}` : ""}
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: "6px", marginTop: "10px", paddingBottom: "12px", overflowX: "auto" }}>
@@ -273,9 +496,8 @@ export default function HRRecordsValidation() {
                 padding: "6px 16px", borderRadius: "20px",
                 border: isActive ? "none" : "1.5px solid #D1D5DB",
                 cursor: unlocked && !isActive ? "pointer" : "default",
-                fontSize: "13px",
-                fontWeight: isActive ? "600" : "400",
-                color: isActive ? "white" : "#374151",
+                fontSize: "13px", fontWeight: isActive ? "600" : "400",
+                color: isActive ? "white" : unlocked ? "#374151" : "#9CA3AF",
                 backgroundColor: isActive ? "#0852C9" : "white",
                 whiteSpace: "nowrap", transition: "all 0.15s",
                 boxShadow: isActive ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
@@ -285,16 +507,28 @@ export default function HRRecordsValidation() {
         </div>
       </div>
 
-      
+     
       <div style={{ maxWidth: "860px", margin: "30px auto", padding: "0 24px" }}>
 
-        
+        {apiError && (
+          <div style={{ marginBottom: "16px", padding: "12px 16px", backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <p style={{ margin: 0, fontSize: "13px", color: "#DC2626" }}>⚠ {apiError}</p>
+            <button onClick={() => initHRRecord()} style={{ background: "none", border: "1px solid #FECACA", borderRadius: "6px", padding: "4px 10px", fontSize: "12px", color: "#DC2626", cursor: "pointer" }}>Retry</button>
+          </div>
+        )}
+
+     
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "22px", fontWeight: "700", color: "#0F172A" }}>Staff List</h2>
-            <p style={{ margin: "5px 0 0", fontSize: "13px", color: "#64748B" }}>Add all employees before proceeding to validation workflows</p>
+            <p style={{ margin: "5px 0 0", fontSize: "13px", color: "#64748B" }}>
+              Add all employees before proceeding to validation workflows
+            </p>
           </div>
-          <button onClick={() => openModal("choose")} style={{ display: "flex", alignItems: "center", gap: "7px", backgroundColor: "#0852C9", color: "white", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer", flexShrink: 0 }}>
+          <button
+            onClick={() => openModal("choose")}
+            disabled={hrRecordId === null || loading}
+            style={{ display: "flex", alignItems: "center", gap: "7px", backgroundColor: hrRecordId !== null && !loading ? "#0852C9" : "#93ABDE", color: "white", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "14px", fontWeight: "600", cursor: hrRecordId !== null && !loading ? "pointer" : "not-allowed", flexShrink: 0 }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="white" strokeWidth="2" strokeLinecap="round" /></svg>
             Add Employee
           </button>
@@ -302,24 +536,39 @@ export default function HRRecordsValidation() {
 
         
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "14px", marginBottom: "18px" }}>
-          {[{ label: "Total Employees", value: employees.length }, { label: "Migrant Workers", value: migrantCount }, { label: "British/Irish", value: britishIrishCount }].map((s) => (
+          {[
+            { label: "Total Employees", value: stats.total },
+            { label: "Migrant Workers", value: stats.migrant },
+            { label: "British / Irish", value: stats.british_irish },
+          ].map((s) => (
             <div key={s.label} style={{ backgroundColor: "white", borderRadius: "10px", padding: "22px 26px", border: "1px solid #E2E8F0" }}>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#0F172A", marginBottom: "4px" }}>{s.value}</div>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#0F172A", marginBottom: "4px" }}>
+                {loading ? <SpinnerIcon color="#CBD5E1" /> : s.value}
+              </div>
               <div style={{ fontSize: "13px", color: "#64748B" }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        
+        {/* Employee list */}
         <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", overflow: "hidden" }}>
-          <div style={{ padding: "22px 24px 16px" }}>
+          <div style={{ padding: "22px 24px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ margin: 0, fontSize: "15.5px", fontWeight: "600", color: "#0F172A" }}>Employee Records</h3>
+            {!loading && employees.length > 0 && (
+              <button onClick={() => hrRecordId && loadEmployees(hrRecordId)}
+                style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: "6px", padding: "4px 10px", fontSize: "12px", color: "#64748B", cursor: "pointer" }}>
+                ↻ Refresh
+              </button>
+            )}
           </div>
-          {employees.length === 0 ? (
+
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "48px" }}><SpinnerIcon /></div>
+          ) : employees.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 24px 60px", gap: "8px" }}>
               <UserAvatar size={52} color="#94A3B8" />
               <p style={{ margin: "6px 0 2px", fontSize: "15px", fontWeight: "600", color: "#334155" }}>No employees added yet</p>
-              <p style={{ margin: 0, fontSize: "13px", color: "#64748B" }}>Click the "Add Employee" button to start building your staff list</p>
+              <p style={{ margin: 0, fontSize: "13px", color: "#64748B" }}>Click "Add Employee" to start building your staff list</p>
               <button onClick={() => openModal("choose")} style={{ display: "flex", alignItems: "center", gap: "7px", marginTop: "10px", backgroundColor: "white", color: "#334155", border: "1.5px solid #CBD5E1", borderRadius: "8px", padding: "9px 18px", fontSize: "13.5px", fontWeight: "500", cursor: "pointer" }}>
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="#334155" strokeWidth="1.8" strokeLinecap="round" /></svg>
                 Add First Employee
@@ -334,12 +583,15 @@ export default function HRRecordsValidation() {
                       <UserAvatar size={24} color="#0852C9" />
                     </div>
                     <div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#0F172A" }}>{emp.name}</div>
-                      <div style={{ fontSize: "12px", color: "#64748B", marginTop: "2px" }}>#{i + 1} • {emp.nationality}{emp.documentType ? ` • ${emp.documentType}` : ""}</div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#0F172A" }}>{emp.employee_full_name}</div>
+                      <div style={{ fontSize: "12px", color: "#64748B", marginTop: "2px" }}>
+                        #{i + 1} · {emp.nationality} · {emp.employment_start_date}
+                        {emp.rtw_document_url ? " · RTW uploaded" : ""}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", color: "#64748B", fontSize: "13px" }}>
-                    <ClockIcon />Pending
+                    <ClockIcon />{emp.status ?? "Pending"}
                   </div>
                 </div>
               ))}
@@ -347,17 +599,16 @@ export default function HRRecordsValidation() {
           )}
         </div>
 
-       
         {employees.length > 0 && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
-            <button onClick={handleProceed} style={{ backgroundColor: "#0852C9", color: "white", border: "none", borderRadius: "8px", padding: "12px 26px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
-              Proceed to Validation Workflows
+            <button onClick={() => router.push("/employer/sections/rtw-compliance")}
+              style={{ backgroundColor: "#0852C9", color: "white", border: "none", borderRadius: "8px", padding: "12px 26px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
+              Proceed to Validation Workflows →
             </button>
           </div>
         )}
       </div>
 
-      
       {showModal && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }} onClick={() => setShowModal(false)}>
           <div style={{ backgroundColor: "white", borderRadius: "14px", padding: "26px 28px 24px", width: "520px", maxWidth: "95vw", boxShadow: "0 25px 60px rgba(0,0,0,0.22)", position: "relative", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -366,13 +617,41 @@ export default function HRRecordsValidation() {
             <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748B" }}>Choose how you want to add the employee record</p>
             <button onClick={() => setShowModal(false)} style={{ position: "absolute", top: "16px", right: "16px", background: "none", border: "1.5px solid #CBD5E1", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B", fontSize: "13px" }}>✕</button>
 
+            {submitError && (
+              <div style={{ marginBottom: "14px", padding: "10px 12px", backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px" }}>
+                <p style={{ margin: 0, fontSize: "12.5px", color: "#DC2626" }}>⚠ {submitError}</p>
+              </div>
+            )}
+
+           
             {modalStep === "choose" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 {[
-                  { step: "rtw", title: "RTW-Led Entry", desc: "For Migrant Workers - Upload RTW document for AI extraction", icon: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="#0852C9" strokeWidth="1.5" /><path d="M6 7h8M6 10h8M6 13h5" stroke="#0852C9" strokeWidth="1.5" strokeLinecap="round" /></svg> },
-                  { step: "manual", title: "Manual Entry", desc: "Enter employee details manually", icon: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.5" stroke="#0852C9" strokeWidth="1.5" /><path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="#0852C9" strokeWidth="1.5" strokeLinecap="round" /></svg> },
+                  {
+                    step: "rtw" as const,
+                    title: "RTW-Led Entry",
+                    desc: "For Migrant Workers – Upload RTW document for AI extraction",
+                    icon: (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <rect x="3" y="2" width="14" height="16" rx="2" stroke="#0852C9" strokeWidth="1.5" />
+                        <path d="M6 7h8M6 10h8M6 13h5" stroke="#0852C9" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    step: "manual" as const,
+                    title: "Manual Entry",
+                    desc: "Enter employee details manually",
+                    icon: (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <circle cx="10" cy="7" r="3.5" stroke="#0852C9" strokeWidth="1.5" />
+                        <path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="#0852C9" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    ),
+                  },
                 ].map((opt) => (
-                  <button key={opt.step} onClick={() => setModalStep(opt.step)} style={{ border: "1.5px solid #E2E8F0", borderRadius: "10px", padding: "20px 16px", backgroundColor: "white", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
+                  <button key={opt.step} onClick={() => setModalStep(opt.step)}
+                    style={{ border: "1.5px solid #E2E8F0", borderRadius: "10px", padding: "20px 16px", backgroundColor: "white", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
                     onMouseOver={(e) => { e.currentTarget.style.borderColor = "#0852C9"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(8,82,201,0.08)"; }}
                     onMouseOut={(e) => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }}>
                     <div style={{ width: "38px", height: "38px", borderRadius: "8px", backgroundColor: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "12px" }}>{opt.icon}</div>
@@ -383,6 +662,7 @@ export default function HRRecordsValidation() {
               </div>
             )}
 
+            
             {modalStep === "rtw" && (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -392,25 +672,34 @@ export default function HRRecordsValidation() {
                 <div style={{ marginBottom: "14px" }}>
                   <label style={lbl}>Upload RTW Document *</label>
                   <RTWUploadArea
-                    onExtracted={(data) => setRtwForm((prev) => ({ ...prev, name: data.fullName || prev.name, nationality: data.nationality || prev.nationality, expiryDate: data.expiryDate || prev.expiryDate, documentType: data.documentType || prev.documentType, documentNumber: data.documentNumber || prev.documentNumber, dob: data.dob || prev.dob }))}
-                    onFileChange={(f) => setRtwForm((prev) => ({ ...prev, file: f }))}
+                    onFileChange={(f, url) =>
+                      setRtwForm((prev) => ({ ...prev, file: f, fileUrl: url || "" }))
+                    }
                   />
                 </div>
                 <div style={{ marginBottom: "14px" }}>
                   <label style={lbl}>Employee Full Name *</label>
                   <input type="text" value={rtwForm.name} onChange={(e) => setRtwForm({ ...rtwForm, name: e.target.value })} placeholder="Enter full name" style={inputStyle} />
                 </div>
+                <div style={{ marginBottom: "14px" }}>
+                  <label style={lbl}>Nationality (extracted from document)</label>
+                  <input type="text" value={rtwForm.nationality} onChange={(e) => setRtwForm({ ...rtwForm, nationality: e.target.value })} placeholder="e.g. Migrant, British" style={inputStyle} />
+                </div>
                 <div style={{ marginBottom: "22px" }}>
                   <label style={lbl}>Employment Start Date *</label>
                   <input type="date" value={rtwForm.startDate} onChange={(e) => setRtwForm({ ...rtwForm, startDate: e.target.value })} style={inputStyle} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <button onClick={() => setShowModal(false)} style={cancelBtn}>Cancel</button>
-                  <button onClick={handleRtwAdd} disabled={!rtwFormValid} style={{ ...primaryBtn, opacity: rtwFormValid ? 1 : 0.5, cursor: rtwFormValid ? "pointer" : "not-allowed" }}>Add Employee</button>
+                  <button onClick={() => setShowModal(false)} style={cancelBtn} disabled={submitting}>Cancel</button>
+                  <button onClick={handleRtwAdd} disabled={!rtwFormValid || submitting}
+                    style={{ ...primaryBtn, opacity: rtwFormValid && !submitting ? 1 : 0.5, cursor: rtwFormValid && !submitting ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    {submitting ? <><SpinnerIcon color="#fff" /> Adding…</> : "Add Employee"}
+                  </button>
                 </div>
               </>
             )}
 
+            
             {modalStep === "manual" && (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
@@ -424,9 +713,13 @@ export default function HRRecordsValidation() {
                 <div style={{ marginBottom: "14px" }}>
                   <label style={lbl}>Nationality *</label>
                   <div style={{ position: "relative" }}>
-                    <select value={manualForm.nationality} onChange={(e) => setManualForm({ ...manualForm, nationality: e.target.value })} style={{ ...inputStyle, appearance: "none", paddingRight: "36px" }}>
-                      <option value="British/Irish">British/Irish</option>
+                    <select value={manualForm.nationality} onChange={(e) => setManualForm({ ...manualForm, nationality: e.target.value })}
+                      style={{ ...inputStyle, appearance: "none", paddingRight: "36px" }}>
+                      <option value="British">British</option>
+                      <option value="Irish">Irish</option>
+                      <option value="British/Irish">British / Irish</option>
                       <option value="Migrant">Migrant</option>
+                      <option value="Other">Other</option>
                     </select>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
                       <path d="M3 5l4 4 4-4" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" />
@@ -434,12 +727,15 @@ export default function HRRecordsValidation() {
                   </div>
                 </div>
                 <div style={{ marginBottom: "22px" }}>
-                  <label style={lbl}>Employment Start Date</label>
+                  <label style={lbl}>Employment Start Date *</label>
                   <input type="date" value={manualForm.startDate} onChange={(e) => setManualForm({ ...manualForm, startDate: e.target.value })} style={inputStyle} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <button onClick={() => setShowModal(false)} style={cancelBtn}>Cancel</button>
-                  <button onClick={handleManualAdd} disabled={!manualFormValid} style={{ ...primaryBtn, opacity: manualFormValid ? 1 : 0.5, cursor: manualFormValid ? "pointer" : "not-allowed" }}>Add Employee</button>
+                  <button onClick={() => setShowModal(false)} style={cancelBtn} disabled={submitting}>Cancel</button>
+                  <button onClick={handleManualAdd} disabled={!manualFormValid || submitting}
+                    style={{ ...primaryBtn, opacity: manualFormValid && !submitting ? 1 : 0.5, cursor: manualFormValid && !submitting ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    {submitting ? <><SpinnerIcon color="#fff" /> Adding…</> : "Add Employee"}
+                  </button>
                 </div>
               </>
             )}
@@ -449,8 +745,3 @@ export default function HRRecordsValidation() {
     </div>
   );
 }
-
-const lbl = { display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" };
-const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1.5px solid #D1D5DB", fontSize: "14px", outline: "none", boxSizing: "border-box", color: "#0F172A", backgroundColor: "white" };
-const cancelBtn = { padding: "11px 20px", borderRadius: "8px", border: "1.5px solid #D1D5DB", backgroundColor: "white", fontSize: "14px", fontWeight: "500", cursor: "pointer", color: "#374151" };
-const primaryBtn = { padding: "11px 20px", borderRadius: "8px", border: "none", backgroundColor: "#0852C9", color: "white", fontSize: "14px", fontWeight: "600", cursor: "pointer" };

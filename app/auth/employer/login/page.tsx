@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loginAction } from '../../_action/auth.action'; 
+import { loginAction } from '../../_action/auth.action';
 
 type LoginFormData = {
   email: string;
@@ -18,7 +18,7 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
-  
+
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>();
 
   const onSubmit = async (formData: LoginFormData) => {
@@ -30,34 +30,31 @@ const LoginPage = () => {
         email: formData.email,
         password: formData.password,
       });
+      console.log("LOGIN RESULT:", result);
+      
 
-      if (result.success && result.data) {
-        // Check if user needs onboarding
-        if (!result.data.onboarding) {
-          router.push('/employer/dashboard');
-        } else {
-          // Redirect to employer dashboard
-          router.push('/employer/dashboard');
-        }
+      if (result.success) {
+       
+        router.push('/employer/dashboard');
+        router.refresh();
       } else {
         setErrorMessage(result.message);
       }
     } catch (error) {
       setErrorMessage('An unexpected error occurred. Please try again.');
-      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-gray-50 flex items-center justify-center px-4 py-6 md:p-12 min-h-screen overflow-y-auto">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-5 sm:p-6 md:p-8">
+    <div className="flex items-center justify-center px-4 py-6 md:p-12">
+      <div className="w-full max-w-md md:max-w-lg bg-white rounded-lg shadow-lg p-5 sm:p-6 md:p-8">
         <div className="flex flex-col items-center justify-center mb-4 md:mb-6">
-          <Image 
-            src="/logo/main.png" 
-            alt="WPC Jobs Logo" 
-            width={180} 
+          <Image
+            src="/logo/main.png"
+            alt="WPC Jobs Logo"
+            width={180}
             height={60}
             className="object-contain h-14 sm:h-16 md:h-20 w-auto"
           />
@@ -87,7 +84,7 @@ const LoginPage = () => {
                 type="email"
                 placeholder="Enter email"
                 disabled={isLoading}
-                {...register('email', { 
+                {...register('email', {
                   required: 'Email is required',
                   pattern: {
                     value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
@@ -97,9 +94,7 @@ const LoginPage = () => {
                 className="w-full pl-9 md:pl-10 pr-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
-            {errors.email && (
-              <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
@@ -113,38 +108,22 @@ const LoginPage = () => {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="..........."
                 disabled={isLoading}
-                {...register('password', { 
+                {...register('password', {
                   required: 'Password is required',
-                  minLength: {
-                    value: 6,
-                    message: 'Password must be at least 6 characters'
-                  }
+                  minLength: { value: 6, message: 'Password must be at least 6 characters' }
                 })}
                 className="w-full pl-9 md:pl-10 pr-11 md:pr-12 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
-              >
-                {showPassword ? (
-                  <FiEyeOff className="w-4 h-4 md:w-5 md:h-5" />
-                ) : (
-                  <FiEye className="w-4 h-4 md:w-5 md:h-5" />
-                )}
+              <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed">
+                {showPassword ? <FiEyeOff className="w-4 h-4 md:w-5 md:h-5" /> : <FiEye className="w-4 h-4 md:w-5 md:h-5" />}
               </button>
             </div>
-            {errors.password && (
-              <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
-            )}
+            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#0852C9] hover:bg-blue-700 text-white font-semibold py-2.5 md:py-3 text-sm md:text-base rounded-lg transition duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center"
-          >
+          <button type="submit" disabled={isLoading}
+            className="w-full bg-[#0852C9] hover:bg-blue-700 text-white font-semibold py-2.5 md:py-3 text-sm md:text-base rounded-lg transition duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center">
             {isLoading ? (
               <>
                 <svg className="animate-spin -ml-1 mr-3 h-4 w-4 md:h-5 md:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -153,9 +132,7 @@ const LoginPage = () => {
                 </svg>
                 Signing in...
               </>
-            ) : (
-              'Secure Login'
-            )}
+            ) : 'Secure Login'}
           </button>
 
           <div className="flex items-center justify-between text-xs md:text-sm">
@@ -169,8 +146,10 @@ const LoginPage = () => {
             <Link href="/auth/employer/register" className="text-blue-600 hover:underline font-medium">
               Create Account
             </Link>
+            
           </div>
         </form>
+       
       </div>
     </div>
   );
