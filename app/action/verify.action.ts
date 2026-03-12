@@ -1,15 +1,19 @@
-// actions/authActions.ts
-import clientApi from "@/lib/axios";
+// actions/verify.action.ts
+
+import axios from "axios";
+
+/* =======================================================
+   SEND OTP (FORGOT PASSWORD)
+======================================================= */
 
 type OtpResponse =
   | { success: true; message: string }
   | { success: false; message: string };
 
-export async function get_verification_token(
+export async function request_password_reset(
   email: string
 ): Promise<OtpResponse> {
 
-  // basic check
   if (!email) {
     return {
       success: false,
@@ -18,34 +22,43 @@ export async function get_verification_token(
   }
 
   try {
-    const res = await clientApi.post("api/auth/password/forgot/", {
-      email,
-    });
 
-    if (res.status === 200 && res.data?.message) {
+    const res = await axios.post(
+      "/api/proxy/accounts/password-reset/",
+      {
+        email
+      }
+    );
+
+    if (res.status === 200) {
       return {
         success: true,
-        message: res.data.message, 
+        message: res.data?.message || "OTP sent successfully",
       };
     }
+
     return {
       success: false,
-      message: "Something went wrong. Please try again.",
+      message: "Something went wrong",
     };
+
   } catch (error: any) {
-    if (error?.response?.data?.email?.[0]) {
-      return {
-        success: false,
-        message: error.response.data.email[0],
-      };
-    }
+
     return {
       success: false,
-      message: "Failed to send OTP. Please try again later.",
+      message:
+        error?.response?.data?.email?.[0] ||
+        error?.response?.data?.detail ||
+        "Failed to send reset email",
     };
+
   }
 }
 
+
+/* =======================================================
+   VERIFY OTP
+======================================================= */
 
 type VerifyEmailPayload = {
   email: string;
@@ -54,19 +67,20 @@ type VerifyEmailPayload = {
 
 type VerifyEmailResponse =
   | {
-        success: true;
-        message: string;
-        token: string;
-        code: string;
+      success: true;
+      message: string;
+      token: string;
+      code: string;
     }
   | {
-        success: false;
-        message: string;
+      success: false;
+      message: string;
     };
 
 export async function verify_email(
   payload: VerifyEmailPayload
 ): Promise<VerifyEmailResponse> {
+
   const { email, otp } = payload;
 
   if (!email || !otp) {
@@ -77,18 +91,19 @@ export async function verify_email(
   }
 
   try {
-    const res = await clientApi.post(
-      "/api/auth/password/verify-otp/",
+
+    const res = await axios.post(
+      "/api/proxy/api/auth/password/verify-otp/",
       {
         email,
-        otp,
+        otp
       }
     );
 
-    if (res.status === 200 && res.data?.message) {
+    if (res.status === 200) {
       return {
         success: true,
-        message: res.data.message, 
+        message: res.data?.message || "OTP verified",
         token: res.data.token,
         code: res.data.code,
       };
@@ -98,7 +113,9 @@ export async function verify_email(
       success: false,
       message: "Verification failed",
     };
+
   } catch (error: any) {
+
     if (error?.response?.data?.email?.[0]) {
       return {
         success: false,
@@ -115,10 +132,18 @@ export async function verify_email(
 
     return {
       success: false,
-      message: "Verification failed",
+      message:
+        error?.response?.data?.detail ||
+        "OTP verification failed",
     };
+
   }
 }
+
+
+/* =======================================================
+   RESET PASSWORD
+======================================================= */
 
 type ResetPasswordPayload = {
   email: string;
@@ -135,16 +160,16 @@ type ResetPasswordResponse =
 export async function reset_password(
   payload: ResetPasswordPayload
 ): Promise<ResetPasswordResponse> {
-  const { email, token, code, new_password, confirm_password } = payload;
 
-  // basic client-side validation
-  if (
-    !email ||
-    !token ||
-    !code ||
-    !new_password ||
-    !confirm_password
-  ) {
+  const {
+    email,
+    token,
+    code,
+    new_password,
+    confirm_password
+  } = payload;
+
+  if (!email || !token || !code || !new_password || !confirm_password) {
     return {
       success: false,
       message: "All fields are required",
@@ -159,32 +184,39 @@ export async function reset_password(
   }
 
   try {
-    const res = await clientApi.post(
-      "api/auth/password/reset/",
+
+    const res = await axios.post(
+      "/api/proxy/api/auth/password/reset/",
       {
         email,
         token,
         code,
         new_password,
-        confirm_password,
+        confirm_password
       }
     );
 
-    if (res.status === 200 && res.data?.message) {
+    if (res.status === 200) {
       return {
         success: true,
-        message: res.data.message, 
+        message: res.data?.message || "Password reset successfully",
       };
     }
 
     return {
       success: false,
-      message: "Something went wrong. Please try again.",
+      message: "Failed to reset password",
     };
-  } catch (error) {
+
+  } catch (error: any) {
+
     return {
       success: false,
-      message: "Failed to reset password. Please try again.",
+      message:
+        error?.response?.data?.new_password?.[0] ||
+        error?.response?.data?.detail ||
+        "Reset failed",
     };
+
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { get_verification_token, verify_email } from "@/app/action/verify.action";
+import { request_password_reset, verify_email } from "@/app/action/verify.action";
 import Logo from "@/components/logo";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -30,25 +30,27 @@ export default function VerifyCode() {
   }, [timer, step]);
 
   /* ---------------- SEND OTP ---------------- */
-  const handleSendCode = async () => {
-    if (!email) {
-      toast.error("Email is required");
-      return;
-    }
+const handleSendCode = async () => {
+  if (!email) {
+    toast.error("Email is required");
+    return;
+  }
 
-    setLoading(true);
-    const res = await get_verification_token(email);
-    setLoading(false);
+  setLoading(true);
 
-    if (!res.success) {
-      toast.error(res.message);
-      return;
-    }
+  const res = await request_password_reset(email);
 
-    toast.success("Verification Code Sent on mail");
-    setStep("verify");
-    setTimer(25);
-  };
+  setLoading(false);
+
+  if (!res.success) {
+    toast.error(res.message);
+    return;
+  }
+
+  toast.success("Verification Code Sent on mail");
+  setStep("verify");
+  setTimer(25);
+};;
 
   /* ---------------- OTP INPUT ---------------- */
   const handleChange = (value: string, index: number) => {
@@ -64,32 +66,35 @@ export default function VerifyCode() {
   };
 
   /* ---------------- VERIFY OTP ---------------- */
-  const handleVerify = async () => {
-    const otpCode = otp.join("");
+ const handleVerify = async () => {
+  const otpCode = otp.join("");
 
-    if (otpCode.length !== 6) {
-      toast.error("Please enter complete OTP");
-      return;
-    }
+  if (otpCode.length !== 6) {
+    toast.error("Please enter complete OTP");
+    return;
+  }
 
-    setLoading(true);
-    const res = await verify_email({ email, otp: otpCode });
-    setLoading(false);
+  setLoading(true);
 
-    if (!res.success) {
-      toast.error(res.message);
-      return;
-    }
+  const res = await verify_email({ email, otp: otpCode });
 
-    setResetData({
-      email,
-      token: res.token,
-      code: res.code,
-    });
+  setLoading(false);
 
-    toast.success("OTP verified successfully");
-    router.push("/welcome/change-password");
-  };
+  if (!res.success) {
+    toast.error(res.message);
+    return;
+  }
+
+  setResetData({
+    email,
+    token: res.token,
+    code: res.code,
+  });
+
+  toast.success("OTP verified successfully");
+
+  router.push("/welcome/change-password");
+};
 
   /* ---------------- RESEND CODE ---------------- */
   const handleResendCode = async () => {

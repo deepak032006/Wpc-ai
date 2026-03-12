@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 type ResetData = {
   email: string;
@@ -23,14 +23,26 @@ export function VerificationProvider({
 }: {
   children: React.ReactNode;
 }) {
+
   const [resetData, setResetDataState] = useState<ResetData | null>(null);
+
+  /* Load from sessionStorage */
+  useEffect(() => {
+    const stored = sessionStorage.getItem("resetData");
+    if (stored) {
+      setResetDataState(JSON.parse(stored));
+    }
+  }, []);
 
   const setResetData = (data: ResetData) => {
     setResetDataState(data);
+
+    sessionStorage.setItem("resetData", JSON.stringify(data));
   };
 
   const clearResetData = () => {
     setResetDataState(null);
+    sessionStorage.removeItem("resetData");
   };
 
   return (
@@ -44,10 +56,12 @@ export function VerificationProvider({
 
 export function usePasswordReset() {
   const context = useContext(VerificationContext);
+
   if (!context) {
     throw new Error(
       "usePasswordReset must be used within VerificationProvider"
     );
   }
+
   return context;
 }

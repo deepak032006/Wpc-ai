@@ -295,6 +295,7 @@ export default function HRRecordsValidation() {
   const [modalStep, setModalStep] = useState<"choose" | "manual" | "rtw">("choose");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [tabProgress, setTabProgress] = useState<Record<string, boolean>>({});
 
   const [manualForm, setManualForm] = useState<ManualForm>({ name: "", nationality: "British", startDate: "" });
   const [rtwForm, setRtwForm] = useState<RTWForm>({
@@ -304,6 +305,15 @@ export default function HRRecordsValidation() {
   });
 
   useEffect(() => { initHRRecord(); }, []);
+
+  useEffect(() => {
+  try {
+    const p = sessionStorage.getItem("hr_progress");
+    setTabProgress(p ? JSON.parse(p) : {});
+  } catch {
+    setTabProgress({});
+  }
+}, []);
 
   async function initHRRecord() {
     setLoading(true);
@@ -440,26 +450,18 @@ export default function HRRecordsValidation() {
 
   const staffComplete = employees.length > 0;
 
-  const getTabProgress = () => {
-    try {
-      const p = sessionStorage.getItem("hr_progress");
-      return p ? JSON.parse(p) : {};
-    } catch {
-      return {};
-    }
-  };
+  
 
-  const isTabUnlocked = (tabId: string) => {
-    if (tabId === "staff") return true;
-    if (tabId === "rtw") return staffComplete;
-    const p = getTabProgress();
-    if (tabId === "pension") return p.rtw;
-    if (tabId === "auth") return p.pension;
-    if (tabId === "contracts") return p.auth;
-    if (tabId === "financial") return p.contracts;
-    if (tabId === "summary") return p.financial;
-    return false;
-  };
+ const isTabUnlocked = (tabId: string) => {
+  if (tabId === "staff") return true;
+  if (tabId === "rtw") return staffComplete;
+  if (tabId === "pension") return tabProgress.rtw;
+  if (tabId === "auth") return tabProgress.pension;
+  if (tabId === "contracts") return tabProgress.auth;
+  if (tabId === "financial") return tabProgress.contracts;
+  if (tabId === "summary") return tabProgress.financial;
+  return false;
+};
 
   const handleTabClick = (tabId: string) => {
     if (tabId === "staff" || !isTabUnlocked(tabId)) return;

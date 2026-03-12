@@ -1,14 +1,13 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  // Skip TypeScript type checking during builds
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  // Skip ESLint checks during builds
-  eslint: {
-    ignoreDuringBuilds: true,
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/api/proxy/:path*",
+        destination: "http://37.27.113.235:6767/:path*",
+      },
+    ];
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

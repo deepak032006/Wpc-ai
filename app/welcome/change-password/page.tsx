@@ -23,50 +23,53 @@ export default function ChangePassword() {
   useEffect(() => {
     if (!resetData?.email || !resetData?.token || !resetData?.code) {
       toast.error("Invalid or expired reset session");
-      router.replace("/welcome/verify");
+      router.replace("/welcome/forgot-password");
     }
   }, [resetData, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!newPassword || !confirmPassword) {
-      toast.error("All fields are required");
-      return;
-    }
+  if (!newPassword || !confirmPassword) {
+    toast.error("All fields are required");
+    return;
+  }
 
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
+  if (newPassword.length < 8) {
+    toast.error("Password must be at least 8 characters");
+    return;
+  }
 
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
+  if (newPassword !== confirmPassword) {
+    toast.error("Passwords do not match");
+    return;
+  }
 
-    if (!resetData) return;
+  if (!resetData) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    const res = await reset_password({
-      email: resetData.email,
-      token: resetData.token,
-      code: resetData.code,
-      new_password: newPassword,
-      confirm_password: confirmPassword,
-    });
+  const res = await reset_password({
+    email: resetData.email,
+    token: resetData.token,
+    code: resetData.code,
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  });
 
-    setLoading(false);
+  setLoading(false);
 
-    if (!res.success) {
-      toast.error(res.message);
-      return;
-    }
+  if (!res.success) {
+    toast.error(res.message);
+    return;
+  }
 
-    toast.success(res.message);
-    router.push('/auth/login')
-  };
+  clearResetData();
+
+  toast.success(res.message);
+
+  router.push("/auth/login");
+};
 
   return (
     <div className="w-full max-w-[540px] bg-white rounded-[14px] shadow-[0_12px_40px_rgba(14,58,128,0.12)] px-8.75 py-10 mx-auto mt-20">
