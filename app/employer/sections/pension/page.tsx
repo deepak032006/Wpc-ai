@@ -50,14 +50,14 @@ const getProgress = () => {
   try { return JSON.parse(sessionStorage.getItem("hr_progress") || "{}"); } catch { return {}; }
 };
 
-const markComplete = (key) => {
+const markComplete = (key: string) => {
   try {
     const p = getProgress();
     sessionStorage.setItem("hr_progress", JSON.stringify({ ...p, [key]: true }));
   } catch {}
 };
 
-const isTabUnlocked = (tabId) => {
+const isTabUnlocked = (tabId: string) => {
   if (tabId === "staff" || tabId === "rtw") return true;
   if (tabId === "pension") return true;
   const p = getProgress();
@@ -68,9 +68,12 @@ const isTabUnlocked = (tabId) => {
   return false;
 };
 
+type TopNavProps = {
+  onBack: () => void;
+  onTabClick: (tabId: string) => void;
+};
 
-
-function TopNav({ onBack, onTabClick }) {
+function TopNav({ onBack, onTabClick }: TopNavProps) {
   return (
     <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
@@ -106,8 +109,13 @@ function TopNav({ onBack, onTabClick }) {
   );
 }
 
+type StepPillsProps = {
+  activeStep: string;
+  onStepClick: (step: string) => void;
+  companyRegistered: string | null;
+};
 
-function StepPills({ activeStep, onStepClick, companyRegistered }) {
+function StepPills({ activeStep, onStepClick, companyRegistered }: StepPillsProps) {
   const steps = [
     { id: "company", label: "1. Company Registration" },
     { id: "eligibility", label: "2. Employee Eligibility" },
@@ -135,11 +143,19 @@ function StepPills({ activeStep, onStepClick, companyRegistered }) {
   );
 }
 
+type CompanyRegistrationStepProps = {
+  value: string | null;
+  onChange: (value: string) => void;
+  onContinue: () => void;
+};
 
-
-function CompanyRegistrationStep({ value, onChange, onContinue }) {
-  const inputRef = useRef();
-  const [fileName, setFileName] = useState(null);
+function CompanyRegistrationStep({
+  value,
+  onChange,
+  onContinue,
+}: CompanyRegistrationStepProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const isYes = value === "yes";
   const isNo = value === "no";
@@ -261,17 +277,41 @@ function CompanyRegistrationStep({ value, onChange, onContinue }) {
 }
 
 
+type Employee = {
+  id: number;
+  name: string;
+};
 
-function EmployeeEligibilityStep({ employees, onComplete }) {
-  const [checks, setChecks] = useState(() =>
-    Object.fromEntries(employees.map((e) => [e.id, { age22: false, earnings10k: false, autoEnrolled: false, optedOut: false }]))
+type EmployeeEligibilityStepProps = {
+  employees: Employee[];
+  onComplete: () => void;
+};
+
+function EmployeeEligibilityStep({
+  employees,
+  onComplete,
+}: EmployeeEligibilityStepProps) {
+
+  const [checks, setChecks] = useState<Record<number, any>>(() =>
+    Object.fromEntries(
+      employees.map((e) => [
+        e.id,
+        { age22: false, earnings10k: false, autoEnrolled: false, optedOut: false },
+      ])
+    )
   );
 
-  const toggle = (empId, field) => {
-    setChecks((prev) => ({ ...prev, [empId]: { ...prev[empId], [field]: !prev[empId][field] } }));
-  };
+ const toggle = (empId: number, field: string) => {
+  setChecks((prev) => ({
+    ...prev,
+    [empId]: {
+      ...prev[empId],
+      [field]: !prev[empId][field],
+    },
+  }));
+};
 
-  const getStatus = (c) => {
+ const getStatus = (c: any) => {
     const eligible = c.age22 && c.earnings10k;
     if (!eligible) return { label: "Not Eligible", bg: "#F3F4F6", color: "#6B7280", border: "#D1D5DB" };
     if (c.autoEnrolled) return { label: "Compliant", bg: "#DCFCE7", color: "#166534", border: "#86EFAC" };
@@ -379,9 +419,9 @@ function EmployeeEligibilityStep({ employees, onComplete }) {
 
 export default function PensionCompliance() {
   const router = useRouter();
-  const [employees, setEmployees] = useState([]);
-  const [step, setStep] = useState("company");
-  const [companyRegistered, setCompanyRegistered] = useState(null); 
+ const [employees, setEmployees] = useState<Employee[]>([]);
+ const [step, setStep] = useState<string>("company");
+const [companyRegistered, setCompanyRegistered] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -390,16 +430,16 @@ export default function PensionCompliance() {
     } catch {}
   }, []);
 
-  const handleTabClick = (tabId) => {
+  const handleTabClick = (tabId: string) => {
     if (tabId === "pension") return;
-    const routes = {
-      staff: "/employer/sections/hr-validation",
-      rtw: "/employer/sections/hr-validation/rtw-compliance",
-      auth: "/employer/sections/hr-validation/authorising-officer",
-      contracts: "/employer/sections/hr-validation/contracts",
-      financial: "/employer/sections/hr-validation/financial",
-      summary: "/employer/sections/hr-validation/summary",
-    };
+   const routes: Record<string, string> = {
+  staff: "/employer/sections/hr-validation",
+  rtw: "/employer/sections/hr-validation/rtw-compliance",
+  auth: "/employer/sections/hr-validation/authorising-officer",
+  contracts: "/employer/sections/hr-validation/contracts",
+  financial: "/employer/sections/hr-validation/financial",
+  summary: "/employer/sections/hr-validation/summary",
+};
     if (!isTabUnlocked(tabId)) return;
     if (routes[tabId]) router.push(routes[tabId]);
   };

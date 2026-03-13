@@ -3,7 +3,53 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-const tabs = [
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Tab {
+  label: string;
+  id: string;
+}
+
+interface Progress {
+  [key: string]: boolean;
+}
+
+interface Contract {
+  id: number;
+  clientName: string;
+  exists: "yes" | "no";
+  aligns: "yes" | "no" | null;
+  document: string | null;
+}
+
+type ContractStatus = "pass" | "fail" | "pending";
+
+interface ContractSummary {
+  passed: number;
+  failed: number;
+  requireAction: number;
+}
+
+interface RadioRowProps {
+  value: string;
+  selected: string | null;
+  onChange: (value: string) => void;
+  label: string;
+}
+
+interface AddContractFormProps {
+  onAdd: (contract: Contract) => void;
+  onCancel: () => void;
+}
+
+interface TopNavProps {
+  onBack: () => void;
+  onTabClick: (tabId: string) => void;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const tabs: Tab[] = [
   { label: "Staff List", id: "staff" },
   { label: "1. RTW Compliance", id: "rtw" },
   { label: "2. Pension", id: "pension" },
@@ -13,73 +59,38 @@ const tabs = [
   { label: "6. Summary", id: "summary" },
 ];
 
-const getProgress = () => {
+// ─── Session helpers ──────────────────────────────────────────────────────────
+
+const getProgress = (): Progress => {
   try { return JSON.parse(sessionStorage.getItem("hr_progress") || "{}"); } catch { return {}; }
 };
 
-const markComplete = (key) => {
+const markComplete = (key: string): void => {
   try {
     const p = getProgress();
     sessionStorage.setItem("hr_progress", JSON.stringify({ ...p, [key]: true }));
   } catch {}
 };
 
-const isTabUnlocked = (tabId) => {
+const isTabUnlocked = (tabId: string): boolean => {
   if (["staff", "rtw", "pension", "auth", "contracts"].includes(tabId)) return true;
   const p = getProgress();
-  if (tabId === "financial") return p.contracts;
-  if (tabId === "summary") return p.financial;
+  if (tabId === "financial") return !!p.contracts;
+  if (tabId === "summary") return !!p.financial;
   return false;
 };
 
+// ─── Status helpers ───────────────────────────────────────────────────────────
 
-
-const B2BIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="1" y="2" width="16" height="14" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
-    <path d="M1 7h16M5 2v5M13 2v5" stroke="#374151" strokeWidth="1.4" strokeLinecap="round" />
-  </svg>
-);
-
-const ContractFileIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="3" y="1" width="14" height="18" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
-    <path d="M6 7h8M6 10h8M6 13h5" stroke="#374151" strokeWidth="1.3" strokeLinecap="round" />
-  </svg>
-);
-
-const GreenCheck = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-    <circle cx="9" cy="9" r="8" stroke="#16A34A" strokeWidth="1.4" fill="none" />
-    <path d="M5.5 9l2.5 2.5L12.5 6" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const YellowWarn = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-    <path d="M9 2L1.5 15.5h15L9 2z" stroke="#D97706" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
-    <path d="M9 8v3M9 13v.5" stroke="#D97706" strokeWidth="1.3" strokeLinecap="round" />
-  </svg>
-);
-
-const UploadIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <path d="M12 18V8M12 8l-4 4M12 8l4 4" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M4 20h16" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
-
-
-
-function getContractStatus(contract) {
+function getContractStatus(contract: Contract): ContractStatus {
   if (contract.exists === "yes" && contract.aligns === "yes") return "pass";
   if (contract.exists === "no" || contract.aligns === "no") return "fail";
   return "pending";
 }
 
-function getSummary(contracts) {
+function getSummary(contracts: Contract[]): ContractSummary {
   let passed = 0, failed = 0;
-  contracts.forEach(c => {
+  contracts.forEach((c) => {
     const s = getContractStatus(c);
     if (s === "pass") passed++;
     else if (s === "fail") failed++;
@@ -87,9 +98,46 @@ function getSummary(contracts) {
   return { passed, failed, requireAction: 0 };
 }
 
+// ─── Icons ───────────────────────────────────────────────────────────────────
 
+const B2BIcon = (): React.JSX.Element => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="1" y="2" width="16" height="14" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
+    <path d="M1 7h16M5 2v5M13 2v5" stroke="#374151" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
 
-function TopNav({ onBack, onTabClick }) {
+const ContractFileIcon = (): React.JSX.Element => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="3" y="1" width="14" height="18" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
+    <path d="M6 7h8M6 10h8M6 13h5" stroke="#374151" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+);
+
+const GreenCheck = (): React.JSX.Element => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <circle cx="9" cy="9" r="8" stroke="#16A34A" strokeWidth="1.4" fill="none" />
+    <path d="M5.5 9l2.5 2.5L12.5 6" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const YellowWarn = (): React.JSX.Element => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M9 2L1.5 15.5h15L9 2z" stroke="#D97706" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+    <path d="M9 8v3M9 13v.5" stroke="#D97706" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+);
+
+const UploadIcon = (): React.JSX.Element => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M12 18V8M12 8l-4 4M12 8l4 4" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 20h16" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+// ─── TopNav ───────────────────────────────────────────────────────────────────
+
+function TopNav({ onBack, onTabClick }: TopNavProps): React.JSX.Element {
   return (
     <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
@@ -125,31 +173,31 @@ function TopNav({ onBack, onTabClick }) {
   );
 }
 
+// ─── AddContractForm ──────────────────────────────────────────────────────────
 
-
-function AddContractForm({ onAdd, onCancel }) {
-  const [clientName, setClientName] = useState("");
-  const [exists, setExists] = useState(null);
-  const [aligns, setAligns] = useState(null);
-  const [fileName, setFileName] = useState(null);
-  const inputRef = useRef();
+function AddContractForm({ onAdd, onCancel }: AddContractFormProps): React.JSX.Element {
+  const [clientName, setClientName] = useState<string>("");
+  const [exists, setExists] = useState<string | null>(null);
+  const [aligns, setAligns] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const canAdd = clientName.trim() && exists;
   const showAligns = exists === "yes";
   const showUpload = exists === "yes";
 
-  const handleAdd = () => {
+  const handleAdd = (): void => {
     if (!canAdd) return;
     onAdd({
       id: Date.now(),
       clientName: clientName.trim(),
-      exists,
-      aligns: exists === "no" ? "no" : aligns,
+      exists: exists as "yes" | "no",
+      aligns: exists === "no" ? "no" : (aligns as "yes" | "no" | null),
       document: fileName,
     });
   };
 
-  const RadioRow = ({ value, selected, onChange, label }) => (
+  const RadioRow = ({ value, selected, onChange, label }: RadioRowProps): React.JSX.Element => (
     <div
       onClick={() => onChange(value)}
       style={{
@@ -179,7 +227,7 @@ function AddContractForm({ onAdd, onCancel }) {
         <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>Add Client Contract</h3>
       </div>
 
-     
+      {/* Client name */}
       <div style={{ marginBottom: "18px" }}>
         <label style={lbl}>Client / Company Name</label>
         <input
@@ -191,14 +239,14 @@ function AddContractForm({ onAdd, onCancel }) {
         />
       </div>
 
-    
+      {/* Contract exists */}
       <div style={{ marginBottom: "18px" }}>
         <label style={{ ...lbl, marginBottom: "10px" }}>Does the contract exist?</label>
         <RadioRow value="yes" selected={exists} onChange={setExists} label="Yes, contract exists" />
         <RadioRow value="no" selected={exists} onChange={setExists} label="No contract on file" />
       </div>
 
-     
+      {/* Aligns */}
       {showAligns && (
         <div style={{ marginBottom: "18px" }}>
           <label style={{ ...lbl, marginBottom: "10px" }}>Does the contract align with business activity?</label>
@@ -207,7 +255,7 @@ function AddContractForm({ onAdd, onCancel }) {
         </div>
       )}
 
-    
+      {/* Upload */}
       {showUpload && (
         <div style={{ marginBottom: "20px" }}>
           <label style={lbl}>Upload Contract Document (Optional)</label>
@@ -225,7 +273,7 @@ function AddContractForm({ onAdd, onCancel }) {
         </div>
       )}
 
-     
+      {/* Actions */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
         <button onClick={onCancel} style={cancelBtn}>Cancel</button>
         <button
@@ -240,16 +288,16 @@ function AddContractForm({ onAdd, onCancel }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-
-export default function ContractsPage() {
+export default function ContractsPage(): React.JSX.Element {
   const router = useRouter();
-  const [contracts, setContracts] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [showForm, setShowForm] = useState<boolean>(false);
 
-  const handleTabClick = (tabId) => {
+  const handleTabClick = (tabId: string): void => {
     if (tabId === "contracts") return;
-    const routes = {
+    const routes: Record<string, string> = {
       staff: "/employer/sections/hr-validation",
       rtw: "/employer/sections/hr-validation/rtw-compliance",
       pension: "/employer/sections/hr-validation/pension",
@@ -261,30 +309,28 @@ export default function ContractsPage() {
     if (routes[tabId]) router.push(routes[tabId]);
   };
 
-  const handleAddContract = (contract) => {
-    setContracts(prev => [...prev, contract]);
+  const handleAddContract = (contract: Contract): void => {
+    setContracts((prev) => [...prev, contract]);
     setShowForm(false);
   };
 
-  const handleContinue = () => {
+  const handleContinue = (): void => {
     markComplete("contracts");
     router.push("/employer/sections/financial");
   };
 
   const summary = getSummary(contracts);
   const hasContracts = contracts.length > 0;
-  const allValid = summary.failed === 0 && hasContracts;
   const hasIssues = summary.failed > 0;
   const canContinue = hasContracts;
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F1F5F9", minHeight: "100vh" }}>
-
       <TopNav onBack={() => router.back()} onTabClick={handleTabClick} />
 
       <div style={{ maxWidth: "860px", margin: "30px auto", padding: "0 24px" }}>
 
-      
+        {/* Heading */}
         <div style={{ marginBottom: "20px" }}>
           <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#0F172A", letterSpacing: "-0.3px" }}>
             Workflow 4: Client Contract Validation
@@ -294,7 +340,7 @@ export default function ContractsPage() {
           </p>
         </div>
 
-       
+        {/* Info banner */}
         <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "16px 20px", marginBottom: "14px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
           <B2BIcon />
           <div>
@@ -303,17 +349,15 @@ export default function ContractsPage() {
           </div>
         </div>
 
-       
+        {/* Contracts table */}
         {hasContracts && (
           <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "20px 24px", marginBottom: "14px" }}>
             <h3 style={{ margin: "0 0 16px", fontSize: "15px", fontWeight: "700", color: "#0F172A" }}>Added Contracts</h3>
-            {/* Table Header */}
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.5fr 1fr 1fr", padding: "0 4px 10px", borderBottom: "1px solid #F1F5F9" }}>
-              {["Client Name", "Contract Exists", "Aligns with Activity", "Document", "Status"].map(h => (
+              {["Client Name", "Contract Exists", "Aligns with Activity", "Document", "Status"].map((h) => (
                 <div key={h} style={{ fontSize: "12.5px", color: "#94A3B8", fontWeight: "500" }}>{h}</div>
               ))}
             </div>
-           
             {contracts.map((c) => {
               const status = getContractStatus(c);
               return (
@@ -341,12 +385,9 @@ export default function ContractsPage() {
           </div>
         )}
 
-      
+        {/* Add form or add button */}
         {showForm ? (
-          <AddContractForm
-            onAdd={handleAddContract}
-            onCancel={() => setShowForm(false)}
-          />
+          <AddContractForm onAdd={handleAddContract} onCancel={() => setShowForm(false)} />
         ) : (
           <button
             onClick={() => setShowForm(true)}
@@ -362,7 +403,7 @@ export default function ContractsPage() {
           </button>
         )}
 
-       
+        {/* Summary bar */}
         {hasContracts && !showForm && (
           <div style={{
             backgroundColor: "white", borderRadius: "10px",
@@ -378,15 +419,14 @@ export default function ContractsPage() {
             </div>
             <span style={{
               padding: "5px 14px", borderRadius: "20px", fontSize: "12.5px", fontWeight: "700",
-              backgroundColor: hasIssues ? "#DC2626" : "#0852C9",
-              color: "white",
+              backgroundColor: hasIssues ? "#DC2626" : "#0852C9", color: "white",
             }}>
               {hasIssues ? "Issues Found" : "All Valid"}
             </span>
           </div>
         )}
 
-    
+        {/* Continue */}
         <button
           onClick={canContinue ? handleContinue : undefined}
           style={{
@@ -394,14 +434,13 @@ export default function ContractsPage() {
             color: "white", border: "none", borderRadius: "8px",
             fontSize: "14px", fontWeight: "600",
             cursor: canContinue ? "pointer" : "not-allowed",
-            opacity: canContinue ? 1 : 0.5,
-            marginBottom: "16px",
+            opacity: canContinue ? 1 : 0.5, marginBottom: "16px",
           }}
         >
           Continue to Financial Viability Check
         </button>
 
-     
+        {/* Back */}
         <button
           onClick={() => router.push("/employer/sections/hr-validation/authorising-officer")}
           style={{
@@ -417,7 +456,9 @@ export default function ContractsPage() {
   );
 }
 
-const lbl = { display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" };
-const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1.5px solid #D1D5DB", fontSize: "14px", outline: "none", boxSizing: "border-box", color: "#0F172A", backgroundColor: "white" };
-const cancelBtn = { padding: "11px 20px", borderRadius: "8px", border: "1.5px solid #D1D5DB", backgroundColor: "white", fontSize: "14px", fontWeight: "500", cursor: "pointer", color: "#374151" };
-const primaryBtn = { padding: "11px 20px", borderRadius: "8px", border: "none", backgroundColor: "#0852C9", color: "white", fontSize: "14px", fontWeight: "600" };
+// ─── Shared styles ────────────────────────────────────────────────────────────
+
+const lbl: React.CSSProperties = { display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" };
+const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1.5px solid #D1D5DB", fontSize: "14px", outline: "none", boxSizing: "border-box", color: "#0F172A", backgroundColor: "white" };
+const cancelBtn: React.CSSProperties = { padding: "11px 20px", borderRadius: "8px", border: "1.5px solid #D1D5DB", backgroundColor: "white", fontSize: "14px", fontWeight: "500", cursor: "pointer", color: "#374151" };
+const primaryBtn: React.CSSProperties = { padding: "11px 20px", borderRadius: "8px", border: "none", backgroundColor: "#0852C9", color: "white", fontSize: "14px", fontWeight: "600" };

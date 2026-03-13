@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Users2, Eye, FileText, Phone, CheckCircle,
   ClipboardList, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
@@ -66,7 +66,7 @@ const ResultBadge = ({ result }: { result: string }) => {
 
 const SkeletonRow = () => (
   <tr className="border-b border-gray-50 animate-pulse">
-    {[...Array(6)].map((_, i) => (
+    {[...Array(7)].map((_, i) => (
       <td key={i} className="px-4 py-3">
         <div className="h-3 bg-gray-100 rounded w-24" />
       </td>
@@ -76,21 +76,31 @@ const SkeletonRow = () => (
 
 // ─── Employee Expanded Row ────────────────────────────────────────────────────
 
-const EmployeeExpandedRow = ({ employees, recordId }: { employees: Employee[]; recordId: string | number }) => {
+const EmployeeExpandedRow = ({
+  employees,
+  recordId,
+}: {
+  employees: Employee[];
+  recordId: string | number;
+}) => {
   if (employees.length === 0) {
     return (
       <tr>
-        <td colSpan={6} className="px-6 py-3 bg-blue-50/30 text-[12px] text-[#9CA3AF] border-b border-gray-100">
+        <td
+          colSpan={7}
+          className="px-6 py-4 bg-blue-50/30 text-[12px] text-[#9CA3AF] border-b border-gray-100"
+        >
           No employees added to Record #{recordId} yet.
         </td>
       </tr>
     );
   }
+
   return (
     <tr>
-      <td colSpan={6} className="px-6 py-4 bg-blue-50/30 border-b border-gray-100">
+      <td colSpan={7} className="px-6 py-5 bg-blue-50/30 border-b border-gray-100">
         <p className="text-[12px] font-semibold text-[#374151] mb-3">
-          Employees in Record #{recordId}
+          Employees in Record #{recordId} — {employees.length} total
         </p>
         <div className="flex flex-col gap-2">
           {employees.map((emp) => (
@@ -98,28 +108,49 @@ const EmployeeExpandedRow = ({ employees, recordId }: { employees: Employee[]; r
               key={emp.id}
               className="flex flex-wrap items-center gap-3 bg-white rounded-lg px-4 py-3 border border-gray-100 text-[12px] text-[#4B5563]"
             >
-              <div className="w-7 h-7 rounded-full bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
-                <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
-                  <circle cx="24" cy="18" r="9" stroke="#0852C9" strokeWidth="2.5" />
-                  <path d="M6 42c0-9.941 8.059-18 18-18s18 8.059 18 18" stroke="#0852C9" strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
+              {/* Avatar */}
+              <div className="w-8 h-8 rounded-full bg-[#EFF6FF] flex items-center justify-center flex-shrink-0 text-[13px] font-bold text-[#0852C9]">
+                {(emp.employee_full_name || '?')[0].toUpperCase()}
               </div>
-              <span className="font-semibold text-[#0F172A] min-w-[150px]">{emp.employee_full_name}</span>
-              <span className="bg-gray-100 text-[#374151] px-2 py-0.5 rounded-full text-[11px] font-medium">{emp.nationality}</span>
-              <span className="text-[#64748B]">
-                Started: <span className="font-medium text-[#0F172A]">{emp.employment_start_date}</span>
+
+              {/* Name */}
+              <span className="font-semibold text-[#0F172A] min-w-[150px]">
+                {emp.employee_full_name}
               </span>
+
+              {/* Nationality */}
+              <span className="bg-gray-100 text-[#374151] px-2 py-0.5 rounded-full text-[11px] font-medium">
+                {emp.nationality}
+              </span>
+
+              {/* Start date */}
+              <span className="text-[#64748B]">
+                Started:{' '}
+                <span className="font-medium text-[#0F172A]">
+                  {emp.employment_start_date}
+                </span>
+              </span>
+
+              {/* RTW */}
               {emp.rtw_document_url ? (
                 <span className="text-green-600 font-semibold text-[11px]">✓ RTW uploaded</span>
               ) : (
                 <span className="text-orange-500 font-semibold text-[11px]">⚠ No RTW</span>
               )}
-              <span className={`ml-auto px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                emp.status === 'approved' ? 'bg-green-100 text-green-700'
-                : emp.status === 'rejected' ? 'bg-red-100 text-red-700'
-                : 'bg-yellow-100 text-yellow-700'
-              }`}>
-                {emp.status ? emp.status.charAt(0).toUpperCase() + emp.status.slice(1) : 'Pending'}
+
+              {/* Status badge */}
+              <span
+                className={`ml-auto px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                  emp.status === 'approved'
+                    ? 'bg-green-100 text-green-700'
+                    : emp.status === 'rejected'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                }`}
+              >
+                {emp.status
+                  ? emp.status.charAt(0).toUpperCase() + emp.status.slice(1)
+                  : 'Pending'}
               </span>
             </div>
           ))}
@@ -153,24 +184,26 @@ export default function EmployerDashboard() {
   const [totalPages, setTotalPages]     = useState(1);
   const [expandedRow, setExpandedRow]   = useState<string | number | null>(null);
 
-  const tabs: TabType[] = ['All', 'HR Validation', 'Post Compliance', 'Call Agents'];
+  const tabList: TabType[] = ['All', 'HR Validation', 'Post Compliance', 'Call Agents'];
 
   const recentActivity = [
-    { icon: <FileText size={16} className="text-[#0852C9]" />,      text: 'HR report ready for download',   time: '2 min ago' },
-    { icon: <Phone size={16} className="text-[#0852C9]" />,         text: 'Call completed with candidate',  time: '15 min ago' },
-    { icon: <CheckCircle size={16} className="text-[#22C55E]" />,   text: 'HR validation approved',         time: '2 hours ago' },
-    { icon: <ClipboardList size={16} className="text-[#0852C9]" />, text: 'New compliance task assigned',   time: '3 hours ago' },
+    { icon: <FileText size={16} className="text-[#0852C9]" />,      text: 'HR report ready for download',  time: '2 min ago' },
+    { icon: <Phone size={16} className="text-[#0852C9]" />,         text: 'Call completed with candidate', time: '15 min ago' },
+    { icon: <CheckCircle size={16} className="text-[#22C55E]" />,   text: 'HR validation approved',        time: '2 hours ago' },
+    { icon: <ClipboardList size={16} className="text-[#0852C9]" />, text: 'New compliance task assigned',  time: '3 hours ago' },
   ];
 
-  // ── Fetch stats
+  // ── Fetch stats ───────────────────────────────────────────────────────────
+
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
       const token = getClientToken();
       const res = await getDashboardStatsAction(token);
       if (!res.success) {
-        const isAuth = res.message?.toLowerCase().includes('token') ||
-                       res.message?.toLowerCase().includes('authentication');
+        const isAuth =
+          res.message?.toLowerCase().includes('token') ||
+          res.message?.toLowerCase().includes('authentication');
         if (isAuth) { router.push('/auth/employer/login'); return; }
         toast.error(res.message || 'Failed to load stats');
         return;
@@ -183,7 +216,8 @@ export default function EmployerDashboard() {
     }
   }, [router]);
 
-  // ── Fetch tasks
+  // ── Fetch tasks ───────────────────────────────────────────────────────────
+
   const fetchTasks = useCallback(async (tab: TabType, page: number) => {
     try {
       setTaskLoading(true);
@@ -199,8 +233,9 @@ export default function EmployerDashboard() {
 
       const res = await actionMap[tab](page, token);
       if (!res.success) {
-        const isAuth = res.message?.toLowerCase().includes('token') ||
-                       res.message?.toLowerCase().includes('authentication');
+        const isAuth =
+          res.message?.toLowerCase().includes('token') ||
+          res.message?.toLowerCase().includes('authentication');
         if (isAuth) { router.push('/auth/employer/login'); return; }
         toast.error(res.message || 'Failed to load tasks');
         return;
@@ -214,7 +249,8 @@ export default function EmployerDashboard() {
     }
   }, [router]);
 
-  // ── Auth check + initial load
+  // ── Auth check + initial load ─────────────────────────────────────────────
+
   useEffect(() => {
     const token = document.cookie
       .split('; ')
@@ -228,30 +264,36 @@ export default function EmployerDashboard() {
 
     fetchStats();
     fetchTasks('All', 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Auto refresh every 30 seconds — LIVE UPDATE
+  // ── Auto-refresh every 30 s ───────────────────────────────────────────────
+
   useEffect(() => {
     const interval = setInterval(() => {
       fetchStats();
       fetchTasks(activeTab, currentPage);
-    }, 30000);
+    }, 30_000);
     return () => clearInterval(interval);
   }, [activeTab, currentPage, fetchStats, fetchTasks]);
 
-  // ── Tab change
+  // ── Tab change ────────────────────────────────────────────────────────────
+
   useEffect(() => {
     setCurrentPage(1);
     setExpandedRow(null);
     fetchTasks(activeTab, 1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // ── Page change
+  // ── Page change ───────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (currentPage !== 1) {
       setExpandedRow(null);
       fetchTasks(activeTab, currentPage);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
   const goTo = (p: number) => {
@@ -262,11 +304,10 @@ export default function EmployerDashboard() {
     setExpandedRow((prev) => (prev === id ? null : id));
   };
 
-  // ── Smart pagination pages
+  // ── Smart pagination ──────────────────────────────────────────────────────
+
   const getPaginationPages = (): (number | 'ellipsis')[] => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const pages: (number | 'ellipsis')[] = [1];
     if (currentPage > 3) pages.push('ellipsis');
     const start = Math.max(2, currentPage - 1);
@@ -277,7 +318,8 @@ export default function EmployerDashboard() {
     return pages;
   };
 
-  // ── Render
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="bg-[#FDFEFF] p-4 md:p-6 font-inter min-h-screen">
 
@@ -294,10 +336,10 @@ export default function EmployerDashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <StatCard title="HR Validation"             count={stats.hrValidation}             badge="Task Done"    badgeColor="bg-[#D1FAE5] text-[#065F46]" loading={statsLoading} />
+        <StatCard title="HR Validation"              count={stats.hrValidation}             badge="Task Done"    badgeColor="bg-[#D1FAE5] text-[#065F46]" loading={statsLoading} />
         <StatCard title="Post Compliance Validation" count={stats.postComplianceValidation} badge="In Review"    badgeColor="bg-[#DBEAFE] text-[#1D4ED8]" loading={statsLoading} />
-        <StatCard title="Call Agents"               count={stats.callAgents}               badge="Active Calls" badgeColor="bg-[#DBEAFE] text-[#1D4ED8]" loading={statsLoading} />
-        <StatCard title="Tasks in Process"          count={stats.tasksInProcess}           badge="Under Review" badgeColor="bg-[#DBEAFE] text-[#1D4ED8]" loading={statsLoading} />
+        <StatCard title="Call Agents"                count={stats.callAgents}               badge="Active Calls" badgeColor="bg-[#DBEAFE] text-[#1D4ED8]" loading={statsLoading} />
+        <StatCard title="Tasks in Process"           count={stats.tasksInProcess}           badge="Under Review" badgeColor="bg-[#DBEAFE] text-[#1D4ED8]" loading={statsLoading} />
       </div>
 
       {/* Quick Actions */}
@@ -329,7 +371,7 @@ export default function EmployerDashboard() {
 
           {/* Tabs */}
           <div className="flex items-center border-b border-gray-100 overflow-x-auto scrollbar-none">
-            {tabs.map((tab) => (
+            {tabList.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -346,11 +388,13 @@ export default function EmployerDashboard() {
 
           {/* Table */}
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-[12px] sm:text-[13px] min-w-[560px]">
+            <table className="w-full text-[12px] sm:text-[13px] min-w-[620px]">
               <thead>
                 <tr className="text-[#6B7280] text-left border-b border-gray-100 bg-gray-50">
                   <th className="px-3 sm:px-4 py-3 font-medium">Task ID</th>
                   <th className="px-3 sm:px-4 py-3 font-medium">Type</th>
+                  {/* FIX: was rendering status here instead of dateCreated */}
+                  <th className="px-3 sm:px-4 py-3 font-medium">Date Created</th>
                   <th className="px-3 sm:px-4 py-3 font-medium">Status</th>
                   <th className="px-3 sm:px-4 py-3 font-medium">Result</th>
                   <th className="px-3 sm:px-4 py-3 font-medium">Employees</th>
@@ -362,25 +406,39 @@ export default function EmployerDashboard() {
                   [...Array(4)].map((_, i) => <SkeletonRow key={i} />)
                 ) : tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-[#9CA3AF] text-[13px]">
+                    <td colSpan={7} className="text-center py-10 text-[#9CA3AF] text-[13px]">
                       No tasks found for{' '}
                       <span className="font-semibold text-[#6B7280]">{activeTab}</span>
                     </td>
                   </tr>
                 ) : (
                   tasks.map((task) => (
-                    <>
+                    // FIX: use React.Fragment with key instead of <> so key prop works
+                    // and expandedRow toggling functions correctly
+                    <React.Fragment key={task.id}>
                       <tr
-                        key={`row-${task.id}`}
                         className={`border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer ${
                           expandedRow === task.id ? 'bg-blue-50/20' : ''
                         }`}
                         onClick={() => toggleRow(task.id)}
                       >
-                        <td className="px-3 sm:px-4 py-3 text-[#1D1D1D] font-medium">#{task.id}</td>
-                        <td className="px-3 sm:px-4 py-3 text-[#4B5563]">{task.type}</td>
-                        <td className="px-3 sm:px-4 py-3 text-[#4B5563] capitalize">{task.status}</td>
-                        <td className="px-3 sm:px-4 py-3"><ResultBadge result={task.result} /></td>
+                        <td className="px-3 sm:px-4 py-3 text-[#1D1D1D] font-medium">
+                          #{task.id}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 text-[#4B5563]">
+                          {task.type}
+                        </td>
+                        {/* FIX: was showing task.status here — now correctly shows task.dateCreated */}
+                        <td className="px-3 sm:px-4 py-3 text-[#4B5563]">
+                          {task.dateCreated}
+                        </td>
+                        {/* FIX: was showing task.result here — now correctly shows task.status */}
+                        <td className="px-3 sm:px-4 py-3 capitalize text-[#4B5563]">
+                          {task.status}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3">
+                          <ResultBadge result={task.result} />
+                        </td>
                         <td className="px-3 sm:px-4 py-3">
                           <span className="bg-blue-50 text-[#0852C9] text-[11px] font-semibold px-2.5 py-1 rounded-full">
                             {task.employeeCount ?? 0} staff
@@ -399,20 +457,22 @@ export default function EmployerDashboard() {
                               <Eye size={15} />
                             </button>
                             <span className="text-[#CBD5E1]">
-                              {expandedRow === task.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              {expandedRow === task.id
+                                ? <ChevronUp size={14} />
+                                : <ChevronDown size={14} />}
                             </span>
                           </div>
                         </td>
                       </tr>
 
+                      {/* FIX: expanded row now renders reliably because Fragment has correct key */}
                       {expandedRow === task.id && (
                         <EmployeeExpandedRow
-                          key={`expanded-${task.id}`}
                           employees={task.employees ?? []}
                           recordId={task.id}
                         />
                       )}
-                    </>
+                    </React.Fragment>
                   ))
                 )}
               </tbody>
@@ -425,7 +485,10 @@ export default function EmployerDashboard() {
           <h2 className="text-[14px] font-semibold text-[#1D1D1D] mb-4">Recent Activity</h2>
           <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
             {recentActivity.map((a, i) => (
-              <div key={i} className="flex items-start gap-3 min-w-[200px] lg:min-w-0 flex-shrink-0 lg:flex-shrink">
+              <div
+                key={i}
+                className="flex items-start gap-3 min-w-[200px] lg:min-w-0 flex-shrink-0 lg:flex-shrink"
+              >
                 <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center flex-shrink-0">
                   {a.icon}
                 </div>
@@ -469,7 +532,9 @@ export default function EmployerDashboard() {
           )}
         </div>
 
-        <span className="sm:hidden text-[12px] text-[#6B7280]">{currentPage} / {totalPages}</span>
+        <span className="sm:hidden text-[12px] text-[#6B7280]">
+          {currentPage} / {totalPages}
+        </span>
 
         <button
           onClick={() => goTo(currentPage + 1)}

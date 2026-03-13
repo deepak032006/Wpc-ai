@@ -51,10 +51,13 @@ const workingData = [
     },
 ];
 
+interface HowitWorksProps {
+  setIsIntro: React.Dispatch<React.SetStateAction<boolean>>;
+}
 
-const HowitWorks = ({ setIsIntro }) => {
-    const [workings, setWorkings] = useState(workingData);
-    const router = useRouter();
+const HowitWorks = ({ setIsIntro }: HowitWorksProps) => {
+  const [workings, setWorkings] = useState(workingData);
+  const router = useRouter();
     return (
         <div>
             <div className="h-270"></div>

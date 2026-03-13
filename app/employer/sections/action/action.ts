@@ -4,19 +4,7 @@ import { cookies } from 'next/headers';
 
 const BASE_URL = 'http://37.27.113.235:6767';
 
-function clean(raw: any): string {
-  if (!raw) return '';
-  if (typeof raw !== 'string') {
-    if (typeof raw === 'object') {
-      const obj = raw as any;
-      raw = obj.access ?? obj.token ?? obj.access_token ?? obj.key ?? '';
-    } else {
-      return '';
-    }
-  }
-  const s = String(raw).replace(/\s+/g, '');
-  return s.replace(/^(Bearer|Token)/i, '');
-}
+// ─── Token helpers ────────────────────────────────────────────────────────────
 
 async function resolveToken(clientToken?: any): Promise<string> {
   if (clientToken) {
@@ -45,9 +33,17 @@ function makeHeaders(token: string): Record<string, string> {
   return h;
 }
 
-async function apiFetch(url: string, options: RequestInit = {}, clientToken?: string): Promise<Response> {
+async function apiFetch(
+  url: string,
+  options: RequestInit = {},
+  clientToken?: string,
+): Promise<Response> {
   const token = await resolveToken(clientToken);
-  const res = await fetch(url, { ...options, headers: makeHeaders(token), cache: 'no-store' });
+  const res = await fetch(url, {
+    ...options,
+    headers: makeHeaders(token),
+    cache: 'no-store',
+  });
   console.log(`[apiFetch] ${options.method ?? 'GET'} ${url} → ${res.status}`);
   return res;
 }
@@ -62,13 +58,14 @@ function errMsg(data: any): string {
   return 'Something went wrong.';
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type HRValidationRecord = {
   id: number;
   User: number;
   created_at?: string;
   status?: string;
+  [key: string]: any;
 };
 
 export type Employee = {
@@ -79,6 +76,8 @@ export type Employee = {
   HRValidationRecord_id: number;
   rtw_document_url?: string;
   status?: string;
+  created_at?: string;
+  [key: string]: any;
 };
 
 export type AddEmployeePayload = {
@@ -108,21 +107,36 @@ export type TaskItem = {
   employees?: Employee[];
 };
 
-// ─── HR Validation Records ───────────────────────────────────────────────────
+// ─── HR Validation Records ────────────────────────────────────────────────────
 
-export async function listHRValidationRecordsAction(clientToken?: string): Promise<AR<HRValidationRecord[]>> {
+export async function listHRValidationRecordsAction(
+  clientToken?: string,
+): Promise<AR<HRValidationRecord[]>> {
   try {
-    const res = await apiFetch(`${BASE_URL}/api/hr-validation/hr-validation-records/`, {}, clientToken);
+    const res = await apiFetch(
+      `${BASE_URL}/api/hr-validation/hr-validation-records/`,
+      {},
+      clientToken,
+    );
     const data = await res.json();
     if (!res.ok) return { success: false, message: errMsg(data) };
-    return { success: true, message: 'OK', data: Array.isArray(data) ? data : (data.results ?? []) };
+    const records = Array.isArray(data) ? data : (data.results ?? []);
+    // Debug: log all fields returned by API so we can see what date fields exist
+    if (records.length > 0) {
+      console.log('[HR record fields available]', Object.keys(records[0]));
+      console.log('[HR record #0 full]', JSON.stringify(records[0]));
+    }
+    return { success: true, message: 'OK', data: records };
   } catch (e) {
     console.error('[listHRValidationRecordsAction]', e);
     return { success: false, message: 'Network error.' };
   }
 }
 
-export async function createHRValidationRecordAction(userId: number, clientToken?: string): Promise<AR<HRValidationRecord>> {
+export async function createHRValidationRecordAction(
+  userId: number,
+  clientToken?: string,
+): Promise<AR<HRValidationRecord>> {
   try {
     const res = await apiFetch(
       `${BASE_URL}/api/hr-validation/hr-validation-records/`,
@@ -138,9 +152,12 @@ export async function createHRValidationRecordAction(userId: number, clientToken
   }
 }
 
-// ─── Employees ───────────────────────────────────────────────────────────────
+// ─── Employees ────────────────────────────────────────────────────────────────
 
-export async function listEmployeesAction(hrValidationRecordId: number, clientToken?: string): Promise<AR<Employee[]>> {
+export async function listEmployeesAction(
+  hrValidationRecordId: number,
+  clientToken?: string,
+): Promise<AR<Employee[]>> {
   try {
     const res = await apiFetch(
       `${BASE_URL}/api/hr-validation/employees/?HRValidationRecord_id=${hrValidationRecordId}`,
@@ -149,14 +166,23 @@ export async function listEmployeesAction(hrValidationRecordId: number, clientTo
     );
     const data = await res.json();
     if (!res.ok) return { success: false, message: errMsg(data) };
-    return { success: true, message: 'OK', data: Array.isArray(data) ? data : (data.results ?? []) };
+    const employees = Array.isArray(data) ? data : (data.results ?? []);
+    // Debug: log employee fields to find any date field
+    if (employees.length > 0) {
+      console.log(`[employee fields for record ${hrValidationRecordId}]`, Object.keys(employees[0]));
+      console.log(`[employee #0 full]`, JSON.stringify(employees[0]));
+    }
+    return { success: true, message: 'OK', data: employees };
   } catch (e) {
     console.error('[listEmployeesAction]', e);
     return { success: false, message: 'Network error.' };
   }
 }
 
-export async function addEmployeeAction(payload: AddEmployeePayload, clientToken?: string): Promise<AR<Employee>> {
+export async function addEmployeeAction(
+  payload: AddEmployeePayload,
+  clientToken?: string,
+): Promise<AR<Employee>> {
   try {
     const res = await apiFetch(
       `${BASE_URL}/api/hr-validation/employees/`,
@@ -172,12 +198,96 @@ export async function addEmployeeAction(payload: AddEmployeePayload, clientToken
   }
 }
 
-// ─── Dashboard ───────────────────────────────────────────────────────────────
+// ─── Format date ──────────────────────────────────────────────────────────────
+// Handles both ISO datetime strings and plain YYYY-MM-DD date strings
 
-export async function getDashboardStatsAction(clientToken?: string): Promise<AR<DashboardStats>> {
+function formatDate(raw?: string | null): string {
+  if (!raw) return '—';
+  // Normalise plain YYYY-MM-DD so it parses in every timezone
+  const normalised = raw.includes('T') ? raw : `${raw}T00:00:00`;
+  const d = new Date(normalised);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+// ─── Resolve best available date ──────────────────────────────────────────────
+// Tries every plausible date field on the record and its employees
+
+function resolveDateCreated(record: HRValidationRecord, employees: Employee[]): string {
+  // 1. Try all known date-like keys on the record
+  const recordKeys = [
+    'created_at', 'createdAt', 'date_created', 'dateCreated',
+    'updated_at', 'updatedAt', 'date', 'timestamp', 'time',
+  ];
+  for (const key of recordKeys) {
+    const formatted = formatDate(record[key]);
+    if (formatted !== '—') return formatted;
+  }
+
+  // 2. Try date fields on employees (created_at, etc.)
+  const empDateKeys = ['created_at', 'createdAt', 'date_created', 'dateCreated'];
+  const empDates: Date[] = [];
+  for (const emp of employees) {
+    for (const key of empDateKeys) {
+      if (emp[key]) {
+        const d = new Date(emp[key]);
+        if (!isNaN(d.getTime())) { empDates.push(d); break; }
+      }
+    }
+  }
+  if (empDates.length > 0) {
+    const latest = empDates.sort((a, b) => b.getTime() - a.getTime())[0];
+    return formatDate(latest.toISOString());
+  }
+
+  // 3. Last resort: use the latest employment_start_date from employees
+  // employment_start_date is always present and is a meaningful date
+  const startDates: Date[] = employees
+    .map((e) => new Date(
+      e.employment_start_date?.includes('T')
+        ? e.employment_start_date
+        : `${e.employment_start_date}T00:00:00`,
+    ))
+    .filter((d) => !isNaN(d.getTime()));
+
+  if (startDates.length > 0) {
+    const latest = startDates.sort((a, b) => b.getTime() - a.getTime())[0];
+    return formatDate(latest.toISOString());
+  }
+
+  return '—';
+}
+
+// ─── Status → display label ───────────────────────────────────────────────────
+
+function statusToResult(s?: string): string {
+  const map: Record<string, string> = {
+    pending:     'Pending',
+    in_progress: 'In Review',
+    approved:    'Approved',
+    rejected:    'Rejected',
+    completed:   'Completed',
+  };
+  return map[s?.toLowerCase() ?? ''] ?? 'Pending';
+}
+
+// ─── Dashboard Stats ──────────────────────────────────────────────────────────
+
+export async function getDashboardStatsAction(
+  clientToken?: string,
+): Promise<AR<DashboardStats>> {
   const res = await listHRValidationRecordsAction(clientToken);
   if (!res.success) return { success: false, message: res.message };
   const records = res.data ?? [];
+
+  // Treat pending, in_progress, missing/null status all as "in process"
+  const tasksInProcess = records.filter(
+    (r) => !r.status || ['pending', 'in_progress', 'in progress'].includes(r.status.toLowerCase()),
+  ).length;
 
   return {
     success: true,
@@ -186,22 +296,12 @@ export async function getDashboardStatsAction(clientToken?: string): Promise<AR<
       hrValidation: records.length,
       postComplianceValidation: 0,
       callAgents: 0,
-      tasksInProcess: records.filter((r) => r.status === 'in_progress').length,
+      tasksInProcess,
     },
   };
 }
 
-function statusToResult(s?: string): string {
-  return (
-    ({
-      pending: 'Pending',
-      in_progress: 'In Review',
-      approved: 'Approved',
-      rejected: 'Rejected',
-      completed: 'Completed',
-    } as Record<string, string>)[s?.toLowerCase() ?? ''] ?? 'Pending'
-  );
-}
+// ─── All Tasks ────────────────────────────────────────────────────────────────
 
 export async function getAllTasksAction(
   page = 1,
@@ -209,44 +309,38 @@ export async function getAllTasksAction(
 ): Promise<AR<{ tasks: TaskItem[]; totalPages: number }>> {
   const res = await listHRValidationRecordsAction(clientToken);
   if (!res.success) return { success: false, message: res.message };
+
   const records = res.data ?? [];
 
   const tasks: TaskItem[] = await Promise.all(
     records.map(async (r) => {
       const empRes = await listEmployeesAction(r.id, clientToken);
       const employees = empRes.data ?? [];
+
       return {
         id: r.id,
         type: 'HR Validation',
-        dateCreated: r.created_at
-          ? new Date(r.created_at).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })
-          : new Date().toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            }),
+        dateCreated: resolveDateCreated(r, employees),
         status: r.status ?? 'Pending',
         result: statusToResult(r.status),
         employeeCount: employees.length,
         employees,
       };
-    })
+    }),
   );
 
-  const PAGE = 10;
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(tasks.length / PAGE_SIZE));
+  const paginated = tasks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return {
     success: true,
     message: 'OK',
-    data: {
-      tasks: tasks.slice((page - 1) * PAGE, page * PAGE),
-      totalPages: Math.max(1, Math.ceil(tasks.length / PAGE)),
-    },
+    data: { tasks: paginated, totalPages },
   };
 }
+
+// ─── Filtered task actions ────────────────────────────────────────────────────
 
 export async function getHRValidationTasksAction(page = 1, clientToken?: string) {
   return getAllTasksAction(page, clientToken);
@@ -254,14 +348,14 @@ export async function getHRValidationTasksAction(page = 1, clientToken?: string)
 
 export async function getPostComplianceTasksAction(
   page = 1,
-  clientToken?: string,
+  _clientToken?: string,
 ): Promise<AR<{ tasks: TaskItem[]; totalPages: number }>> {
   return { success: true, message: 'OK', data: { tasks: [], totalPages: 1 } };
 }
 
 export async function getCallAgentsTasksAction(
   page = 1,
-  clientToken?: string,
+  _clientToken?: string,
 ): Promise<AR<{ tasks: TaskItem[]; totalPages: number }>> {
   return { success: true, message: 'OK', data: { tasks: [], totalPages: 1 } };
 }

@@ -1,8 +1,10 @@
-"use client";
-import { BiBook, BiLock } from "react-icons/bi";
-import { GrSecure } from "react-icons/gr";
+import { ReactNode } from "react";
 
-export default function WelcomeLayout({ children }) {
+interface WelcomeLayoutProps {
+  children: ReactNode;
+}
+
+export default function WelcomeLayout({ children }: WelcomeLayoutProps) {
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row overflow-hidden">
       

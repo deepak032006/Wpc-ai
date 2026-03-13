@@ -3,7 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/context/AuthContext"
-import { PasswordResetProvider, VerificationProvider } from "@/context/VerificationContext";
+import { VerificationProvider } from "@/context/VerificationContext";
 
 const inter = Inter({
   variable: "--font-inter",
