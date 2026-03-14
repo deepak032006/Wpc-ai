@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
     const publicUrl = `${publicBaseUrl}/${key}`;
 
-    return NextResponse.json({ presignedUrl, publicUrl });
+    return NextResponse.json({ presignedUrl, publicUrl, fileKey: key });
   } catch (err) {
     console.error("Upload presign error:", err);
     return NextResponse.json(

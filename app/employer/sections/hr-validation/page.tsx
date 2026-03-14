@@ -23,6 +23,7 @@ type RTWForm = {
   dob: string;
   file: File | null;
   fileUrl: string;
+  fileKey: string; // ← ADDED: store short key for DB (max 50 chars safe)
 };
 
 
@@ -125,7 +126,8 @@ const SpinnerIcon = ({ color = "#0852C9" }: { color?: string }) => (
 
 
 
-async function uploadFileToR2(file: File): Promise<string> {
+// ← UPDATED: now returns both publicUrl and fileKey
+async function uploadFileToR2(file: File): Promise<{ publicUrl: string; fileKey: string }> {
   const presignRes = await fetch("/api/upload-presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -137,7 +139,7 @@ async function uploadFileToR2(file: File): Promise<string> {
     throw new Error(err.error || "Presigned URL could not be generated");
   }
 
-  const { presignedUrl, publicUrl } = await presignRes.json();
+  const { presignedUrl, publicUrl, fileKey } = await presignRes.json();
 
   const uploadRes = await fetch(presignedUrl, {
     method: "PUT",
@@ -149,7 +151,10 @@ async function uploadFileToR2(file: File): Promise<string> {
     throw new Error(`R2 upload failed (${uploadRes.status})`);
   }
 
-  return publicUrl;
+  // If API doesn't return fileKey, extract last 2 path segments from publicUrl as fallback
+  const key = fileKey ?? publicUrl.split("/").slice(-2).join("/");
+
+  return { publicUrl, fileKey: key };
 }
 
 
@@ -157,7 +162,8 @@ async function uploadFileToR2(file: File): Promise<string> {
 function RTWUploadArea({
   onFileChange,
 }: {
-  onFileChange: (file: File | null, url?: string | null) => void;
+  // ← UPDATED: callback now also receives fileKey
+  onFileChange: (file: File | null, url?: string | null, key?: string | null) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -186,13 +192,14 @@ function RTWUploadArea({
       setErrorMsg("");
 
       try {
-        const uploadedUrl = await uploadFileToR2(f);
-        onFileChange(f, uploadedUrl);
+        // ← UPDATED: destructure both publicUrl and fileKey
+        const { publicUrl, fileKey } = await uploadFileToR2(f);
+        onFileChange(f, publicUrl, fileKey);
         setStatus("done");
       } catch (e: any) {
         setErrorMsg(e.message || "Upload failed.");
         setStatus("error");
-        onFileChange(f, null);
+        onFileChange(f, null, null);
       }
     },
     [onFileChange]
@@ -202,7 +209,7 @@ function RTWUploadArea({
     setFile(null);
     setStatus("idle");
     setErrorMsg("");
-    onFileChange(null, null);
+    onFileChange(null, null, null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -301,19 +308,19 @@ export default function HRRecordsValidation() {
   const [rtwForm, setRtwForm] = useState<RTWForm>({
     name: "", nationality: "", startDate: "",
     documentType: "", documentNumber: "", expiryDate: "", dob: "",
-    file: null, fileUrl: "",
+    file: null, fileUrl: "", fileKey: "", // ← ADDED fileKey
   });
 
   useEffect(() => { initHRRecord(); }, []);
 
   useEffect(() => {
-  try {
-    const p = sessionStorage.getItem("hr_progress");
-    setTabProgress(p ? JSON.parse(p) : {});
-  } catch {
-    setTabProgress({});
-  }
-}, []);
+    try {
+      const p = sessionStorage.getItem("hr_progress");
+      setTabProgress(p ? JSON.parse(p) : {});
+    } catch {
+      setTabProgress({});
+    }
+  }, []);
 
   async function initHRRecord() {
     setLoading(true);
@@ -417,13 +424,17 @@ export default function HRRecordsValidation() {
     if (!rtwForm.name.trim() || !rtwForm.startDate || hrRecordId === null) return;
     setSubmitting(true);
     setSubmitError("");
+    console.log("fileKey:", rtwForm.fileKey);
+    console.log("fileKey length:", rtwForm.fileKey?.length);
+    console.log("fileUrl:", rtwForm.fileUrl);
     const res = await addEmployeeAction(
       {
         employee_full_name: rtwForm.name,
         employment_start_date: rtwForm.startDate,
         nationality: rtwForm.nationality || "Migrant",
         HRValidationRecord_id: hrRecordId,
-        rtw_document_url: rtwForm.fileUrl || undefined,
+
+        rtw_document_url: rtwForm.fileKey || undefined,
       },
       getClientToken()
     );
@@ -443,25 +454,23 @@ export default function HRRecordsValidation() {
     setRtwForm({
       name: "", nationality: "", startDate: "",
       documentType: "", documentNumber: "", expiryDate: "", dob: "",
-      file: null, fileUrl: "",
+      file: null, fileUrl: "", fileKey: "", // ← ADDED fileKey reset
     });
     setShowModal(true);
   };
 
   const staffComplete = employees.length > 0;
 
-  
-
- const isTabUnlocked = (tabId: string) => {
-  if (tabId === "staff") return true;
-  if (tabId === "rtw") return staffComplete;
-  if (tabId === "pension") return tabProgress.rtw;
-  if (tabId === "auth") return tabProgress.pension;
-  if (tabId === "contracts") return tabProgress.auth;
-  if (tabId === "financial") return tabProgress.contracts;
-  if (tabId === "summary") return tabProgress.financial;
-  return false;
-};
+  const isTabUnlocked = (tabId: string) => {
+    if (tabId === "staff") return true;
+    if (tabId === "rtw") return staffComplete;
+    if (tabId === "pension") return tabProgress.rtw;
+    if (tabId === "auth") return tabProgress.pension;
+    if (tabId === "contracts") return tabProgress.auth;
+    if (tabId === "financial") return tabProgress.contracts;
+    if (tabId === "summary") return tabProgress.financial;
+    return false;
+  };
 
   const handleTabClick = (tabId: string) => {
     if (tabId === "staff" || !isTabUnlocked(tabId)) return;
@@ -469,21 +478,22 @@ export default function HRRecordsValidation() {
   };
 
   const manualFormValid = manualForm.name.trim() && manualForm.startDate;
-  const rtwFormValid = rtwForm.name.trim() && rtwForm.startDate && rtwForm.file && rtwForm.fileUrl;
+  // ← UPDATED: rtwFormValid now checks fileKey instead of fileUrl for DB safety
+  const rtwFormValid = rtwForm.name.trim() && rtwForm.startDate && rtwForm.file && rtwForm.fileKey;
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F1F5F9", minHeight: "100vh" }}>
 
-    
       <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
-          <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M13 15L8 10L13 5" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          
+          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
+            <img src="/logo/main.png" alt="WPC AI" style={{ height: "32px", objectFit: "contain" }} />
+
           </button>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>HR Records Validation</h1>
+
+          <div style={{ marginLeft: "12px" }}>
+            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "800", color: "#0F172A", letterSpacing: "-0.3px" }}>HR Records Validation</h1>
             <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "1px" }}>
               V.03{hrRecordId ? ` · Record #${hrRecordId}` : ""}
             </div>
@@ -509,7 +519,6 @@ export default function HRRecordsValidation() {
         </div>
       </div>
 
-     
       <div style={{ maxWidth: "860px", margin: "30px auto", padding: "0 24px" }}>
 
         {apiError && (
@@ -519,7 +528,6 @@ export default function HRRecordsValidation() {
           </div>
         )}
 
-     
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "22px", fontWeight: "700", color: "#0F172A" }}>Staff List</h2>
@@ -536,7 +544,6 @@ export default function HRRecordsValidation() {
           </button>
         </div>
 
-        
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "14px", marginBottom: "18px" }}>
           {[
             { label: "Total Employees", value: stats.total },
@@ -552,7 +559,6 @@ export default function HRRecordsValidation() {
           ))}
         </div>
 
-        {/* Employee list */}
         <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", overflow: "hidden" }}>
           <div style={{ padding: "22px 24px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ margin: 0, fontSize: "15.5px", fontWeight: "600", color: "#0F172A" }}>Employee Records</h3>
@@ -625,7 +631,6 @@ export default function HRRecordsValidation() {
               </div>
             )}
 
-           
             {modalStep === "choose" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 {[
@@ -664,7 +669,6 @@ export default function HRRecordsValidation() {
               </div>
             )}
 
-            
             {modalStep === "rtw" && (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -673,9 +677,10 @@ export default function HRRecordsValidation() {
                 </div>
                 <div style={{ marginBottom: "14px" }}>
                   <label style={lbl}>Upload RTW Document *</label>
+                  {/* ← UPDATED: onFileChange now receives (file, url, key) */}
                   <RTWUploadArea
-                    onFileChange={(f, url) =>
-                      setRtwForm((prev) => ({ ...prev, file: f, fileUrl: url || "" }))
+                    onFileChange={(f, url, key) =>
+                      setRtwForm((prev) => ({ ...prev, file: f, fileUrl: url || "", fileKey: key || "" }))
                     }
                   />
                 </div>
@@ -701,7 +706,6 @@ export default function HRRecordsValidation() {
               </>
             )}
 
-            
             {modalStep === "manual" && (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
