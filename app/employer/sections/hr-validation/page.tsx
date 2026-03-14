@@ -487,7 +487,7 @@ export default function HRRecordsValidation() {
       <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
           
-          <button onClick={() => router.push("/")} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
+          <button onClick={() => router.push("/employer/dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
             <img src="/logo/main.png" alt="WPC AI" style={{ height: "32px", objectFit: "contain" }} />
 
           </button>
