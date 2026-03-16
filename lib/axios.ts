@@ -48,7 +48,7 @@ const isTokenExpired = (token: string): boolean => {
 ============================================ */
 
 const clientApi = axios.create({
-  baseURL: "http://37.27.113.235:6767",   // 👈 YOUR API SERVER
+  baseURL: "http://37.27.113.235:6767",   
   withCredentials: true,
   headers: {
     "Content-Type": "application/json"

@@ -25,7 +25,7 @@ const extractAccessToken = (data: any): string | null => {
   let raw = data?.access ?? data?.token ?? data?.access_token ?? data?.key ?? data?.jwt ?? data?.accessToken ?? null;
   if (!raw) return null;
 
- 
+
   if (typeof raw === 'object' && raw !== null) {
     console.warn('⚠ extractAccessToken: token field is an object, extracting nested access/token field');
     raw = raw.access ?? raw.token ?? raw.access_token ?? null;
@@ -45,9 +45,9 @@ const extractRefreshToken = (data: any): string | null =>
 const extractUser = (data: any) => {
   const u = data?.user?.user ?? data?.user ?? data?.data ?? data;
   return {
-    id:         u?.id ?? data?.user_id ?? null,
-    email:      u?.email ?? "",
-    role:       u?.role ?? u?.user_type ?? u?.account_type ?? "employer", // ✅ API se
+    id: u?.id ?? data?.user_id ?? null,
+    email: u?.email ?? "",
+    role: u?.role ?? u?.user_type ?? u?.account_type ?? "employer", // ✅ API se
     onboarding: u?.onboarding_state ?? u?.onboarding ?? false,
   };
 };
@@ -57,17 +57,17 @@ const extractUser = (data: any) => {
 
 const setCookies = async (data: any) => {
   const cookieStore = await cookies();
-  const accessToken  = extractAccessToken(data);
+  const accessToken = extractAccessToken(data);
   const refreshToken = extractRefreshToken(data);
-  const userObj      = extractUser(data);
+  const userObj = extractUser(data);
 
-  
+
   console.log(" setCookies — raw data keys:", Object.keys(data));
   console.log(" setCookies — extracted accessToken:", JSON.stringify(accessToken));
   console.log(" setCookies — token length:", accessToken?.length ?? 0);
 
   if (accessToken) {
-   
+
     const cleanToken = accessToken.replace(/\s+/g, '');
     cookieStore.set("access-token", cleanToken, {
       httpOnly: false,
@@ -114,7 +114,7 @@ const getFirstError = (errorData: any): string => {
     }
   }
   if (typeof errorData === "string") return errorData;
-  return "An error occurred. Please try again.";
+  return "Something went wrong. Please try again.";
 };
 
 const formatErrorMessage = (error: string, isLogin: boolean = false): string => {
@@ -183,47 +183,44 @@ export async function loginAction(payload: {
   password: string;
 }): Promise<ActionResult> {
   try {
-    const formData = new URLSearchParams();
+    const formData = new FormData();
     formData.append("email", payload.email);
     formData.append("password", payload.password);
 
-   const { data } = await axios.post(
-  `${API_URL}accounts/login/`,
-  formData,
-  {
-    timeout: 15000,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  }
-);
+    const { data } = await axios.post(
+      `${API_URL}accounts/login/`,
+      formData
+    );;
+    console.log("LOGIN API RESPONSE:", data);
 
 
-const token = extractAccessToken(data);
+    const token = extractAccessToken(data);
 
-let profileData = null;
+    let profileData = null;
 
-if (token) {
-  const profileRes = await axios.get(
-    `${API_URL}accounts/me/`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    if (token) {
+      const profileRes = await axios.get(
+        `${API_URL}accounts/profile`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("PROFILE RESPONSE:", profileRes.data);
+
+      profileData = profileRes.data;
     }
-  );
 
-  console.log("PROFILE RESPONSE:", profileRes.data);
+    const finalData = {
+      ...data,
+      user: profileData,
+    };
 
-  profileData = profileRes.data;
-}
+    console.log(" Login API raw response:", JSON.stringify(finalData));
 
-const finalData = {
-  ...data,
-  user: profileData,
-};
-
-console.log(" Login API raw response:", JSON.stringify(finalData));
-
-const userObj = await setCookies(finalData);
+    const userObj = await setCookies(finalData);
 
     return {
       success: true,
@@ -273,29 +270,29 @@ export async function signupAction(payload: {
       }
     );
 
- const token = extractAccessToken(data);
+    const token = extractAccessToken(data);
 
-let profileData = null;
+    let profileData = null;
 
-if (token) {
-  const profileRes = await axios.get(
-    `${API_URL}accounts/me/`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    if (token) {
+      const profileRes = await axios.get(
+        `${API_URL}accounts/me/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      profileData = profileRes.data;
     }
-  );
 
-  profileData = profileRes.data;
-}
+    const finalData = {
+      ...data,
+      user: profileData,
+    };
 
-const finalData = {
-  ...data,
-  user: profileData,
-};
-
-const userObj = await setCookies(finalData);
+    const userObj = await setCookies(finalData);
 
     return {
       success: true,

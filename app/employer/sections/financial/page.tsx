@@ -1,88 +1,21 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  createFinancialRecordAction,
+  updateFinancialRecordAction,
+  addLargeTransactionAction,
+  deleteLargeTransactionAction,
+  syncContractPaymentsAction,
+  listClientContractsAction,
+  type LargeTransaction,
+  type ClientContract,
+} from "@/app/employer/sections/action/action";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Tab {
-  label: string;
-  id: string;
-}
-
-interface Step {
-  id: string;
-  label: string;
-}
-
-interface Progress {
-  [key: string]: boolean;
-}
-
-interface Transaction {
-  id: number;
-  amount: number;
-  reference: string;
-  type: "incoming" | "outgoing";
-  status: "ok" | "fail";
-}
-
-interface FinancialData {
-  balance?: number;
-  incoming?: number;
-  outgoing?: number;
-  netCashFlow?: number;
-  transactions?: Transaction[];
-}
-
-interface SavedContract {
-  clientName?: string;
-  [key: string]: unknown;
-}
-
-interface TopNavProps {
-  onBack: () => void;
-  onTabClick: (tabId: string) => void;
-}
-
-interface StepPillsProps {
-  active: string;
-  onStepClick: (id: string) => void;
-  unlockedUpTo: number;
-}
-
-interface RadioRowProps {
-  value: string;
-  selected: string | null;
-  onChange: (value: string) => void;
-  label: string;
-  desc?: string;
-}
-
-interface BalanceStepProps {
-  onNext: () => void;
-  onSave: (data: Partial<FinancialData>) => void;
-}
-
-interface CashFlowStepProps {
-  onNext: () => void;
-  onPrev: () => void;
-  onSave: (data: Partial<FinancialData>) => void;
-}
-
-interface InvestmentsStepProps {
-  onNext: () => void;
-  onPrev: () => void;
-  onSave: (data: Partial<FinancialData>) => void;
-}
-
-interface ContractsSyncStepProps {
-  onComplete: () => void;
-  onPrev: () => void;
-  savedContracts: SavedContract[];
-}
-
-// ─── Constants ───────────────────────────────────────────────────────────────
+interface Tab { label: string; id: string; }
+interface Step { id: string; label: string; }
+interface Progress { [key: string]: boolean; }
 
 const tabs: Tab[] = [
   { label: "Staff List", id: "staff" },
@@ -104,164 +37,50 @@ const STEPS: Step[] = [
 const MIN_BALANCE = 10425;
 const NON_COMPLIANT_REFS = ["loan", "gift", "director investment", "director's loan", "personal"];
 
-// ─── Session helpers ──────────────────────────────────────────────────────────
+function getClientToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.split("; ").find((row) => row.startsWith("access-token="));
+  if (!match) return "";
+  return decodeURIComponent(match.split("=").slice(1).join("=")).replace(/\s+/g, "").replace(/^(Bearer|Token)\s*/i, "");
+}
 
-const getProgress = (): Progress => {
-  try { return JSON.parse(sessionStorage.getItem("hr_progress") || "{}"); } catch { return {}; }
-};
-
-const markComplete = (key: string): void => {
-  try {
-    const p = getProgress();
-    sessionStorage.setItem("hr_progress", JSON.stringify({ ...p, [key]: true }));
-  } catch {}
-};
-
+const getProgress = (): Progress => { try { return JSON.parse(sessionStorage.getItem("hr_progress") || "{}"); } catch { return {}; } };
+const markComplete = (key: string) => { try { sessionStorage.setItem("hr_progress", JSON.stringify({ ...getProgress(), [key]: true })); } catch {} };
 const isTabUnlocked = (tabId: string): boolean => {
   if (["staff", "rtw", "pension", "auth", "contracts", "financial"].includes(tabId)) return true;
-  const p = getProgress();
-  if (tabId === "summary") return !!p.financial;
-  return false;
+  return !!getProgress().financial;
 };
+const getTransactionStatus = (ref: string): "ok" | "fail" =>
+  NON_COMPLIANT_REFS.some((r) => ref.toLowerCase().includes(r)) ? "fail" : "ok";
 
-function getTransactionStatus(ref: string): "ok" | "fail" {
-  const lower = (ref || "").toLowerCase();
-  if (NON_COMPLIANT_REFS.some((r) => lower.includes(r))) return "fail";
-  return "ok";
-}
-
-// ─── Icons ───────────────────────────────────────────────────────────────────
-
-const DollarIcon = (): React.JSX.Element => (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-    <path d="M10 2v16M6 5.5h5.5a2.5 2.5 0 010 5H8a2.5 2.5 0 000 5H14" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
+const SpinnerIcon = ({ color = "#0852C9" }: { color?: string }) => (
+  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" style={{ animation: "spin 1s linear infinite", flexShrink: 0 }}>
+    <circle cx="10" cy="10" r="8" stroke="#CBD5E1" strokeWidth="2.5" />
+    <path d="M10 2a8 8 0 018 8" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
   </svg>
 );
+const DollarIcon = () => (<svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}><path d="M10 2v16M6 5.5h5.5a2.5 2.5 0 010 5H8a2.5 2.5 0 000 5H14" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" /></svg>);
+const ArrowsIcon = () => (<svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}><path d="M4 7l3-3 3 3M7 4v12M16 13l-3 3-3-3M13 16V4" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+const FileIcon = () => (<svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}><rect x="3" y="1" width="14" height="18" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" /><path d="M6 7h8M6 10h8M6 13h5" stroke="#374151" strokeWidth="1.3" strokeLinecap="round" /></svg>);
+const WarnIcon = () => (<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M8 2L1 14h14L8 2z" stroke="#D97706" strokeWidth="1.4" fill="none" strokeLinejoin="round" /><path d="M8 7v3M8 12v.5" stroke="#D97706" strokeWidth="1.3" strokeLinecap="round" /></svg>);
+const AlertRedIcon = () => (<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M8 2L1 14h14L8 2z" stroke="#DC2626" strokeWidth="1.4" fill="none" strokeLinejoin="round" /><path d="M8 7v3M8 12v.5" stroke="#DC2626" strokeWidth="1.3" strokeLinecap="round" /></svg>);
+const GreenCircleCheck = () => (<svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}><circle cx="9" cy="9" r="8" stroke="#16A34A" strokeWidth="1.4" fill="none" /><path d="M5.5 9l2.5 2.5L12.5 6" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>);
 
-const ArrowsIcon = (): React.JSX.Element => (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-    <path d="M4 7l3-3 3 3M7 4v12M16 13l-3 3-3-3M13 16V4" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const FileIcon = (): React.JSX.Element => (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="3" y="1" width="14" height="18" rx="2" stroke="#374151" strokeWidth="1.4" fill="none" />
-    <path d="M6 7h8M6 10h8M6 13h5" stroke="#374151" strokeWidth="1.3" strokeLinecap="round" />
-  </svg>
-);
-
-const WarnIcon = (): React.JSX.Element => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-    <path d="M8 2L1 14h14L8 2z" stroke="#D97706" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
-    <path d="M8 7v3M8 12v.5" stroke="#D97706" strokeWidth="1.3" strokeLinecap="round" />
-  </svg>
-);
-
-const AlertRedIcon = (): React.JSX.Element => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: "2px" }}>
-    <path d="M8 2L1 14h14L8 2z" stroke="#DC2626" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
-    <path d="M8 7v3M8 12v.5" stroke="#DC2626" strokeWidth="1.3" strokeLinecap="round" />
-  </svg>
-);
-
-const GreenCircleCheck = (): React.JSX.Element => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
-    <circle cx="9" cy="9" r="8" stroke="#16A34A" strokeWidth="1.4" fill="none" />
-    <path d="M5.5 9l2.5 2.5L12.5 6" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const ArrowUpGreen = (): React.JSX.Element => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <path d="M7 11V3M7 3l-3 3M7 3l3 3" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const ArrowDownRed = (): React.JSX.Element => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <path d="M7 3v8M7 11l-3-3M7 11l3-3" stroke="#DC2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-// ─── TopNav ───────────────────────────────────────────────────────────────────
-
-function TopNav({ onBack, onTabClick }: TopNavProps): React.JSX.Element {
+function ErrorBanner({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
-    <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 15L8 10L13 5" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>HR Records Validation</h1>
-          <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "1px" }}>V.03</div>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: "6px", marginTop: "10px", paddingBottom: "12px", overflowX: "auto" }}>
-        {tabs.map((tab) => {
-          const isActive = tab.id === "financial";
-          const unlocked = isTabUnlocked(tab.id);
-          return (
-            <button key={tab.id} onClick={() => onTabClick(tab.id)} style={{
-              padding: "6px 16px", borderRadius: "20px",
-              border: isActive ? "none" : "1.5px solid #D1D5DB",
-              cursor: unlocked && !isActive ? "pointer" : "default",
-              fontSize: "13px", fontWeight: isActive ? "600" : "400",
-              color: isActive ? "white" : "#374151",
-              backgroundColor: isActive ? "#0852C9" : "white",
-              whiteSpace: "nowrap", transition: "all 0.15s",
-              boxShadow: isActive ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
-            }}>{tab.label}</button>
-          );
-        })}
-      </div>
+    <div style={{ marginBottom: "14px", padding: "12px 16px", backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <p style={{ margin: 0, fontSize: "13px", color: "#DC2626" }}>⚠ {msg}</p>
+      <button onClick={onDismiss} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: "16px" }}>✕</button>
     </div>
   );
 }
 
-// ─── StepPills ────────────────────────────────────────────────────────────────
-
-function StepPills({ active, onStepClick, unlockedUpTo }: StepPillsProps): React.JSX.Element {
-  return (
-    <div style={{ display: "flex", gap: "8px", marginBottom: "22px" }}>
-      {STEPS.map((s, i) => {
-        const isActive = s.id === active;
-        const clickable = i <= unlockedUpTo;
-        return (
-          <button key={s.id} onClick={() => clickable && onStepClick(s.id)} style={{
-            padding: "6px 18px", borderRadius: "20px",
-            border: isActive ? "none" : "1.5px solid #D1D5DB",
-            cursor: clickable && !isActive ? "pointer" : "default",
-            fontSize: "13px", fontWeight: isActive ? "600" : "400",
-            color: isActive ? "white" : "#374151",
-            backgroundColor: isActive ? "#0852C9" : "white",
-            whiteSpace: "nowrap",
-            boxShadow: isActive ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
-          }}>{s.label}</button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── RadioRow ─────────────────────────────────────────────────────────────────
-
-function RadioRow({ value, selected, onChange, label, desc }: RadioRowProps): React.JSX.Element {
+function RadioRow({ value, selected, onChange, label, desc }: { value: string; selected: string | null; onChange: (v: string) => void; label: string; desc?: string }) {
   const isSelected = selected === value;
   return (
-    <div onClick={() => onChange(value)} style={{
-      display: "flex", alignItems: "flex-start", gap: "12px",
-      padding: "14px 16px", borderRadius: "8px", marginBottom: "8px",
-      border: `1.5px solid ${isSelected ? "#0852C9" : "#E2E8F0"}`,
-      backgroundColor: isSelected ? "#F0F6FF" : "white", cursor: "pointer",
-    }}>
-      <div style={{
-        width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "2px",
-        border: `2px solid ${isSelected ? "#0852C9" : "#D1D5DB"}`,
-        backgroundColor: isSelected ? "#0852C9" : "white",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+    <div onClick={() => onChange(value)} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderRadius: "8px", marginBottom: "8px", border: `1.5px solid ${isSelected ? "#0852C9" : "#E2E8F0"}`, backgroundColor: isSelected ? "#F0F6FF" : "white", cursor: "pointer" }}>
+      <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "2px", border: `2px solid ${isSelected ? "#0852C9" : "#D1D5DB"}`, backgroundColor: isSelected ? "#0852C9" : "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {isSelected && <div style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: "white" }} />}
       </div>
       <div>
@@ -272,373 +91,343 @@ function RadioRow({ value, selected, onChange, label, desc }: RadioRowProps): Re
   );
 }
 
-// ─── BalanceStep ──────────────────────────────────────────────────────────────
+function TopNav({ onBack, onTabClick }: { onBack: () => void; onTabClick: (id: string) => void }) {
+  return (
+    <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "14px", paddingBottom: "2px" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 15L8 10L13 5" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+        <div>
+          <h1 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#0F172A" }}>HR Records Validation</h1>
+          <div style={{ fontSize: "11px", color: "#94A3B8" }}>V.03</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "6px", marginTop: "10px", paddingBottom: "12px", overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}>
+        {tabs.map((tab) => {
+          const isActive = tab.id === "financial";
+          const unlocked = isTabUnlocked(tab.id);
+          return (
+            <button key={tab.id} onClick={() => onTabClick(tab.id)} style={{ padding: "5px 12px", borderRadius: "20px", border: isActive ? "none" : "1.5px solid #D1D5DB", cursor: unlocked && !isActive ? "pointer" : "default", fontSize: "12px", fontWeight: isActive ? "600" : "400", color: isActive ? "white" : "#374151", backgroundColor: isActive ? "#0852C9" : "white", whiteSpace: "nowrap", flexShrink: 0 }}>
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-function BalanceStep({ onNext, onSave }: BalanceStepProps): React.JSX.Element {
-  const [balance, setBalance] = useState<string>("");
+function StepPills({ active, onStepClick, unlockedUpTo }: { active: string; onStepClick: (id: string) => void; unlockedUpTo: number }) {
+  return (
+    <div style={{ display: "flex", gap: "6px", marginBottom: "20px", overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}>
+      {STEPS.map((s, i) => {
+        const isActive = s.id === active;
+        const clickable = i <= unlockedUpTo;
+        return (
+          <button key={s.id} onClick={() => clickable && onStepClick(s.id)} style={{ padding: "5px 14px", borderRadius: "20px", border: isActive ? "none" : "1.5px solid #D1D5DB", cursor: clickable && !isActive ? "pointer" : "default", fontSize: "12px", fontWeight: isActive ? "600" : "400", color: isActive ? "white" : "#374151", backgroundColor: isActive ? "#0852C9" : "white", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BalanceStep({ hrRecordId, onNext }: { hrRecordId: number | null; onNext: (id: number) => void }) {
+  const [balance, setBalance] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const num = parseFloat(balance);
   const isCompliant = !isNaN(num) && num >= MIN_BALANCE;
   const isInsufficient = !isNaN(num) && num < MIN_BALANCE && balance !== "";
 
-  const handleNext = (): void => { onSave({ balance: num }); onNext(); };
+  const handleNext = async () => {
+    if (!balance || !hrRecordId) return;
+    setSubmitting(true); setError("");
+    const res = await createFinancialRecordAction({ HRValidationRecord_id: hrRecordId, closing_balance_gbp: num.toFixed(2) }, getClientToken());
+    if (!res.success) { setError(res.message); setSubmitting(false); return; }
+    onNext(res.data!.id);
+    setSubmitting(false);
+  };
 
   return (
-    <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "28px 30px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-        <DollarIcon />
-        <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>Step 1: Closing Balance Check</h3>
-      </div>
-      <p style={{ margin: "0 0 22px", fontSize: "13px", color: "#64748B" }}>Closing balance must be at least 3 months of Skilled Worker salary (£10,425)</p>
-
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}><DollarIcon /><h3 style={cardTitle}>Step 1: Closing Balance Check</h3></div>
+      <p style={cardSub}>Minimum: £{MIN_BALANCE.toLocaleString()} (3 months Skilled Worker salary)</p>
+      {error && <ErrorBanner msg={error} onDismiss={() => setError("")} />}
       <div style={{ marginBottom: "16px" }}>
         <label style={lbl}>Current Closing Balance (£)</label>
-        <input
-          type="number" value={balance} onChange={(e) => setBalance(e.target.value)}
-          style={{ ...inputStyle, borderColor: balance && isInsufficient ? "#FCA5A5" : "#0852C9" }}
-        />
+        <input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="Enter amount" style={{ ...inputStyle, borderColor: isInsufficient ? "#FCA5A5" : "#0852C9" }} />
       </div>
-
-      {isCompliant && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "14px 16px", backgroundColor: "#F0FDF4", borderRadius: "8px", border: "1.5px solid #86EFAC", marginBottom: "16px" }}>
-          <GreenCircleCheck />
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#166534" }}>Balance Compliant</div>
-            <div style={{ fontSize: "13px", color: "#166534", marginTop: "2px" }}>£{num.toLocaleString()} exceeds the minimum threshold of £{MIN_BALANCE.toLocaleString()}</div>
-          </div>
-        </div>
-      )}
-      {isInsufficient && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "14px 16px", backgroundColor: "#FFF5F5", borderRadius: "8px", border: "1.5px solid #FCA5A5", marginBottom: "16px" }}>
-          <AlertRedIcon />
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#DC2626" }}>Insufficient Balance</div>
-            <div style={{ fontSize: "13px", color: "#DC2626", marginTop: "2px" }}>Balance of £{num.toLocaleString()} is below the required £{MIN_BALANCE.toLocaleString()}(3 months of £41,700 annual salary)</div>
-          </div>
-        </div>
-      )}
-
-      <button onClick={handleNext} disabled={!balance} style={{ ...primaryBtn, width: "100%", opacity: balance ? 1 : 0.5, cursor: balance ? "pointer" : "not-allowed" }}>
-        Continue to Cash Flow Check
+      {isCompliant && (<div style={{ ...alertBox, backgroundColor: "#F0FDF4", border: "1.5px solid #86EFAC", marginBottom: "16px" }}><GreenCircleCheck /><div><div style={{ fontSize: "14px", fontWeight: "600", color: "#166534" }}>Balance Compliant ✓</div><div style={{ fontSize: "13px", color: "#166534" }}>£{num.toLocaleString()} exceeds minimum of £{MIN_BALANCE.toLocaleString()}</div></div></div>)}
+      {isInsufficient && (<div style={{ ...alertBox, backgroundColor: "#FFF5F5", border: "1.5px solid #FCA5A5", marginBottom: "16px" }}><AlertRedIcon /><div><div style={{ fontSize: "14px", fontWeight: "600", color: "#DC2626" }}>Insufficient Balance</div><div style={{ fontSize: "13px", color: "#DC2626" }}>£{num.toLocaleString()} is below required £{MIN_BALANCE.toLocaleString()}</div></div></div>)}
+      <button onClick={handleNext} disabled={!balance || submitting || !hrRecordId} style={{ ...primaryBtn, width: "100%", opacity: (balance && !submitting) ? 1 : 0.5, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+        {submitting ? <><SpinnerIcon color="#fff" /> Saving…</> : "Continue to Cash Flow Check →"}
       </button>
     </div>
   );
 }
 
-// ─── CashFlowStep ─────────────────────────────────────────────────────────────
-
-function CashFlowStep({ onNext, onPrev, onSave }: CashFlowStepProps): React.JSX.Element {
-  const [incoming, setIncoming] = useState<string>("");
-  const [outgoing, setOutgoing] = useState<string>("");
+function CashFlowStep({ financialRecordId, onNext, onPrev }: { financialRecordId: number | null; onNext: () => void; onPrev: () => void }) {
+  const [incoming, setIncoming] = useState("");
+  const [outgoing, setOutgoing] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const inNum = parseFloat(incoming) || 0;
   const outNum = parseFloat(outgoing) || 0;
   const net = inNum - outNum;
-  const positive = inNum > 0 && outNum > 0 && net > 0;
-  const negative = inNum > 0 && outNum > 0 && net <= 0;
-  const canContinue = incoming && outgoing;
+  const canContinue = !!(incoming && outgoing);
 
-  const handleNext = (): void => { onSave({ incoming: inNum, outgoing: outNum, netCashFlow: net }); onNext(); };
-
-  return (
-    <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "28px 30px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-        <ArrowsIcon />
-        <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>Step 2: Cash Flow Pattern (Last 3 Months)</h3>
-      </div>
-      <p style={{ margin: "0 0 22px", fontSize: "13px", color: "#64748B" }}>Incoming must exceed outgoing for positive cash flow</p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
-        <div>
-          <label style={lbl}><span style={{ display: "flex", alignItems: "center", gap: "6px" }}><ArrowUpGreen /> Total Incoming (£)</span></label>
-          <input type="number" value={incoming} onChange={(e) => setIncoming(e.target.value)} placeholder="Total credits" style={inputStyle} />
-        </div>
-        <div>
-          <label style={lbl}><span style={{ display: "flex", alignItems: "center", gap: "6px" }}><ArrowDownRed /> Total Outgoing (£)</span></label>
-          <input type="number" value={outgoing} onChange={(e) => setOutgoing(e.target.value)} placeholder="Total debits" style={inputStyle} />
-        </div>
-      </div>
-
-      {positive && (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", backgroundColor: "#F0FDF4", borderRadius: "8px", border: "1.5px solid #86EFAC", marginBottom: "16px" }}>
-          <ArrowsIcon />
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#166534" }}>Positive Cash Flow</div>
-            <div style={{ fontSize: "13px", color: "#166534", marginTop: "2px" }}>Net cash flow: +£{net.toLocaleString()}</div>
-          </div>
-        </div>
-      )}
-      {negative && (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", backgroundColor: "#FFF5F5", borderRadius: "8px", border: "1.5px solid #FCA5A5", marginBottom: "16px" }}>
-          <AlertRedIcon />
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#DC2626" }}>Negative Cash Flow</div>
-            <div style={{ fontSize: "13px", color: "#DC2626", marginTop: "2px" }}>Net cash flow: -£{Math.abs(net).toLocaleString()}</div>
-          </div>
-        </div>
-      )}
-
-      <button onClick={handleNext} disabled={!canContinue} style={{ ...primaryBtn, width: "100%", opacity: canContinue ? 1 : 0.5, cursor: canContinue ? "pointer" : "not-allowed" }}>
-        Continue to Investment Check
-      </button>
-    </div>
-  );
-}
-
-// ─── InvestmentsStep ──────────────────────────────────────────────────────────
-
-function InvestmentsStep({ onNext, onPrev, onSave }: InvestmentsStepProps): React.JSX.Element {
-  const [amount, setAmount] = useState<string>("");
-  const [reference, setReference] = useState<string>("");
-  const [type, setType] = useState<"incoming" | "outgoing">("incoming");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  const handleAdd = (): void => {
-    const num = parseFloat(amount);
-    if (!amount || isNaN(num) || num < 2000 || !reference.trim()) return;
-    setTransactions((prev) => [...prev, { id: Date.now(), amount: num, reference: reference.trim(), type, status: getTransactionStatus(reference) }]);
-    setAmount(""); setReference(""); setType("incoming");
+  const handleNext = async () => {
+    if (!canContinue || !financialRecordId) return;
+    setSubmitting(true); setError("");
+    const res = await updateFinancialRecordAction(financialRecordId, { total_incoming_gbp_credits: inNum.toFixed(2), total_outgoing_gbp_debits: outNum.toFixed(2) }, getClientToken());
+    if (!res.success) { setError(res.message); setSubmitting(false); return; }
+    onNext(); setSubmitting(false);
   };
 
-  const handleNext = (): void => { onSave({ transactions }); onNext(); };
-
   return (
-    <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "28px 30px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-        <DollarIcon />
-        <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>Step 3: Large Transaction / Investment Check</h3>
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}><ArrowsIcon /><h3 style={cardTitle}>Step 2: Cash Flow Pattern (Last 3 Months)</h3></div>
+      <p style={cardSub}>Incoming must exceed outgoing for positive cash flow</p>
+      {error && <ErrorBanner msg={error} onDismiss={() => setError("")} />}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px", marginBottom: "16px" }}>
+        <div><label style={lbl}>↑ Total Incoming (£)</label><input type="number" value={incoming} onChange={(e) => setIncoming(e.target.value)} placeholder="Total credits" style={inputStyle} /></div>
+        <div><label style={lbl}>↓ Total Outgoing (£)</label><input type="number" value={outgoing} onChange={(e) => setOutgoing(e.target.value)} placeholder="Total debits" style={inputStyle} /></div>
       </div>
-      <p style={{ margin: "0 0 18px", fontSize: "13px", color: "#64748B" }}>Transactions ≥ £2,000 require reference verification</p>
-
-      {/* Rules box */}
-      <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", border: "1px solid #E2E8F0", padding: "14px 18px", marginBottom: "18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-          <WarnIcon />
-          <span style={{ fontSize: "13.5px", fontWeight: "600", color: "#374151" }}>Reference Check Rules</span>
-        </div>
-        <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "4px" }}>References flagging non-compliance:</div>
-        <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "8px", paddingLeft: "12px" }}>• Loan, Gift, Director Investment, Director's Loan, Personal</div>
-        <div style={{ fontSize: "13px", color: "#64748B", marginBottom: "4px" }}>References indicating compliance:</div>
-        <div style={{ fontSize: "13px", color: "#64748B", paddingLeft: "12px" }}>• Business Name, Invoice Number, Client Payment</div>
-      </div>
-
-      {/* Add transaction */}
-      <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", border: "1px solid #E2E8F0", padding: "16px 18px", marginBottom: "18px" }}>
-        <p style={{ margin: "0 0 12px", fontSize: "13.5px", fontWeight: "600", color: "#0F172A" }}>Add Large Transaction</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "12px", alignItems: "end" }}>
-          <div>
-            <label style={lbl}>Amount (£)</label>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="≥ 2000" style={inputStyle} />
-          </div>
-          <div>
-            <label style={lbl}>Reference</label>
-            <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Transaction reference" style={inputStyle} />
-          </div>
-          <div>
-            <label style={lbl}>Type</label>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", paddingTop: "4px" }}>
-              {(["incoming", "outgoing"] as const).map((t) => (
-                <label key={t} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", cursor: "pointer" }}>
-                  <input type="radio" checked={type === t} onChange={() => setType(t)} style={{ accentColor: "#0852C9" }} /> {t.charAt(0).toUpperCase() + t.slice(1)}
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-        <button onClick={handleAdd} style={{ marginTop: "12px", padding: "8px 16px", backgroundColor: "white", border: "1.5px solid #D1D5DB", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#374151" }}>
-          Add Transaction
-        </button>
-      </div>
-
-      {/* Transactions table */}
-      {transactions.length > 0 && (
-        <div style={{ marginBottom: "18px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr 1fr", padding: "8px 4px", borderBottom: "1px solid #E2E8F0" }}>
-            {["Amount", "Type", "Reference", "Status"].map((h) => <div key={h} style={{ fontSize: "12.5px", color: "#94A3B8", fontWeight: "500" }}>{h}</div>)}
-          </div>
-          {transactions.map((t) => (
-            <div key={t.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr 1fr", padding: "12px 4px", borderBottom: "1px solid #F1F5F9", alignItems: "center" }}>
-              <div style={{ fontSize: "14px", color: "#0F172A", fontWeight: "500" }}>£{t.amount.toLocaleString()}</div>
-              <div style={{ fontSize: "13.5px", color: "#374151", textTransform: "capitalize" }}>{t.type}</div>
-              <div style={{ fontSize: "13.5px", color: "#374151" }}>{t.reference}</div>
-              <div>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", backgroundColor: t.status === "ok" ? "#0852C9" : "#DC2626", color: "white" }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="white" strokeWidth="1.2" fill="none" />{t.status === "ok" ? <path d="M3 5l1.5 1.5L7 3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" /> : <path d="M3.5 3.5l3 3M6.5 3.5l-3 3" stroke="white" strokeWidth="1.2" strokeLinecap="round" />}</svg>
-                  {t.status === "ok" ? "OK" : "Flag"}
-                </span>
-              </div>
-            </div>
-          ))}
+      {inNum > 0 && outNum > 0 && (
+        <div style={{ ...alertBox, backgroundColor: net > 0 ? "#F0FDF4" : "#FFF5F5", border: `1.5px solid ${net > 0 ? "#86EFAC" : "#FCA5A5"}`, marginBottom: "16px" }}>
+          {net > 0 ? <GreenCircleCheck /> : <AlertRedIcon />}
+          <div><div style={{ fontSize: "14px", fontWeight: "600", color: net > 0 ? "#166534" : "#DC2626" }}>{net > 0 ? "Positive Cash Flow" : "Negative Cash Flow"}</div><div style={{ fontSize: "13px", color: net > 0 ? "#166534" : "#DC2626" }}>Net: {net > 0 ? "+" : ""}£{net.toLocaleString()}</div></div>
         </div>
       )}
-
-      <button onClick={handleNext} style={{ ...primaryBtn, width: "100%" }}>
-        Continue to Contract Payment Sync
+      <button onClick={handleNext} disabled={!canContinue || submitting} style={{ ...primaryBtn, width: "100%", opacity: (canContinue && !submitting) ? 1 : 0.5, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+        {submitting ? <><SpinnerIcon color="#fff" /> Saving…</> : "Continue to Investment Check →"}
       </button>
     </div>
   );
 }
 
-// ─── ContractsSyncStep ────────────────────────────────────────────────────────
+function InvestmentsStep({ hrRecordId, financialRecordId, onNext, onPrev }: { hrRecordId: number | null; financialRecordId: number | null; onNext: () => void; onPrev: () => void }) {
+  const [amount, setAmount] = useState("");
+  const [reference, setReference] = useState("");
+  const [type, setType] = useState<"credit" | "debit">("credit");
+  const [date, setDate] = useState("");
+  const [transactions, setTransactions] = useState<(LargeTransaction & { status: "ok" | "fail" })[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [error, setError] = useState("");
 
-interface SyncStatus {
-  ok: boolean;
-  label: string | null;
-  desc?: string;
+  const handleAdd = async () => {
+    const num = parseFloat(amount);
+    if (!amount || isNaN(num) || num < 2000 || !reference.trim() || !date || !hrRecordId || !financialRecordId) return;
+    setAdding(true); setError("");
+    const res = await addLargeTransactionAction({ HRValidationRecord_id: hrRecordId, FinancialRecord_id: financialRecordId, transaction_amount_gbp: num.toFixed(2), transaction_description: reference.trim(), transaction_type: type, transaction_date: date }, getClientToken());
+    if (!res.success) { setError(res.message); setAdding(false); return; }
+    setTransactions((prev) => [...prev, { ...res.data!, status: getTransactionStatus(reference) }]);
+    setAmount(""); setReference(""); setDate(""); setType("credit"); setAdding(false);
+  };
+
+  const handleDelete = async (id: number) => {
+    setDeleting(id);
+    const res = await deleteLargeTransactionAction(id, getClientToken());
+    if (res.success) setTransactions((prev) => prev.filter((t) => t.id !== id));
+    else setError(res.message);
+    setDeleting(null);
+  };
+
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}><DollarIcon /><h3 style={cardTitle}>Step 3: Large Transaction / Investment Check</h3></div>
+      <p style={cardSub}>Transactions ≥ £2,000 require reference verification</p>
+      {error && <ErrorBanner msg={error} onDismiss={() => setError("")} />}
+      <div style={{ backgroundColor: "#FFFBEB", borderRadius: "8px", border: "1px solid #FDE68A", padding: "12px 16px", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}><WarnIcon /><span style={{ fontSize: "13px", fontWeight: "600", color: "#92400E" }}>Reference Check Rules</span></div>
+        <div style={{ fontSize: "12.5px", color: "#78350F" }}>🚩 Non-compliant: Loan, Gift, Director Investment, Director's Loan, Personal</div>
+        <div style={{ fontSize: "12.5px", color: "#78350F", marginTop: "3px" }}>✅ Compliant: Business Name, Invoice Number, Client Payment</div>
+      </div>
+      <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", border: "1px solid #E2E8F0", padding: "16px", marginBottom: "16px" }}>
+        <p style={{ margin: "0 0 12px", fontSize: "13.5px", fontWeight: "600", color: "#0F172A" }}>Add Large Transaction</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginBottom: "10px" }}>
+          <div><label style={lbl}>Amount (£) *</label><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="≥ 2000" style={inputStyle} /></div>
+          <div><label style={lbl}>Reference *</label><input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Invoice #123" style={inputStyle} /></div>
+          <div><label style={lbl}>Date *</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} /></div>
+        </div>
+        <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "12px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "13px", fontWeight: "500", color: "#374151" }}>Type:</span>
+          {(["credit", "debit"] as const).map((t) => (
+            <label key={t} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", cursor: "pointer" }}>
+              <input type="radio" checked={type === t} onChange={() => setType(t)} style={{ accentColor: "#0852C9" }} />{t.charAt(0).toUpperCase() + t.slice(1)}
+            </label>
+          ))}
+        </div>
+        <button onClick={handleAdd} disabled={adding || !amount || !reference || !date} style={{ padding: "8px 14px", backgroundColor: "white", border: "1.5px solid #D1D5DB", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#374151", display: "flex", alignItems: "center", gap: "6px" }}>
+          {adding ? <><SpinnerIcon color="#374151" /> Adding…</> : "+ Add Transaction"}
+        </button>
+      </div>
+      {transactions.length > 0 && (
+        <div style={{ overflowX: "auto", marginBottom: "16px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "420px" }}>
+            <thead><tr style={{ borderBottom: "1px solid #E2E8F0" }}>{["Amount", "Type", "Reference", "Status", ""].map((h) => (<th key={h} style={{ padding: "8px 6px", fontSize: "12px", color: "#94A3B8", fontWeight: "500", textAlign: "left" }}>{h}</th>))}</tr></thead>
+            <tbody>
+              {transactions.map((t) => (
+                <tr key={t.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                  <td style={{ padding: "10px 6px", fontSize: "13.5px", fontWeight: "600", color: "#0F172A" }}>£{parseFloat(t.transaction_amount_gbp).toLocaleString()}</td>
+                  <td style={{ padding: "10px 6px", fontSize: "13px", color: "#374151", textTransform: "capitalize" }}>{t.transaction_type}</td>
+                  <td style={{ padding: "10px 6px", fontSize: "13px", color: "#374151" }}>{t.transaction_description}</td>
+                  <td style={{ padding: "10px 6px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", backgroundColor: t.status === "ok" ? "#0852C9" : "#DC2626", color: "white" }}>{t.status === "ok" ? "✓ OK" : "✗ Flag"}</span></td>
+                  <td style={{ padding: "10px 6px" }}><button onClick={() => handleDelete(t.id)} disabled={deleting === t.id} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", fontSize: "16px" }}>{deleting === t.id ? <SpinnerIcon color="#94A3B8" /> : "✕"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <button onClick={onNext} style={{ ...primaryBtn, width: "100%" }}>Continue to Contract Payment Sync →</button>
+    </div>
+  );
 }
 
-function ContractsSyncStep({ onComplete, onPrev, savedContracts }: ContractsSyncStepProps): React.JSX.Element {
+function ContractsSyncStep({ financialRecordId, hrRecordId, onComplete, onPrev }: { financialRecordId: number | null; hrRecordId: number | null; onComplete: () => void; onPrev: () => void }) {
   const [paymentsReflected, setPaymentsReflected] = useState<string | null>(null);
   const [futureEngagement, setFutureEngagement] = useState<string | null>(null);
+  const [contracts, setContracts] = useState<ClientContract[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const getStatus = (): SyncStatus | null => {
-    if (paymentsReflected === "yes") return { ok: true, label: null };
-    if (paymentsReflected === "no" && futureEngagement === "yes") return { ok: true, label: "Compliant", desc: "Future engagement is acceptable - payments expected in future." };
-    if (paymentsReflected === "no" && futureEngagement === "no") return { ok: false, label: "Non-Compliant", desc: "Contract dates have expired and payments are not reflected. This flags non-compliance." };
+  useEffect(() => {
+    if (!hrRecordId) return;
+    listClientContractsAction(hrRecordId, getClientToken()).then((res) => { if (res.success && res.data) setContracts(res.data); });
+  }, [hrRecordId]);
+
+  const getStatus = () => {
+    if (paymentsReflected === "yes") return { ok: true, label: "Compliant", desc: "Contract payments are visible in bank statements." };
+    if (paymentsReflected === "no" && futureEngagement === "yes") return { ok: true, label: "Compliant", desc: "Future engagement — payments expected later." };
+    if (paymentsReflected === "no" && futureEngagement === "no") return { ok: false, label: "Non-Compliant", desc: "Expired contract dates with no payments reflected." };
     return null;
   };
 
   const status = getStatus();
   const canComplete = paymentsReflected === "yes" || (paymentsReflected === "no" && futureEngagement !== null);
 
+  const handleComplete = async () => {
+    if (!canComplete || !financialRecordId) return;
+    setSubmitting(true); setError("");
+    const res = await syncContractPaymentsAction(financialRecordId, paymentsReflected === "yes", paymentsReflected === "no" && futureEngagement === "yes", getClientToken());
+    if (!res.success) { setError(res.message); setSubmitting(false); return; }
+    onComplete(); setSubmitting(false);
+  };
+
   return (
-    <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "28px 30px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-        <FileIcon />
-        <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>Step 4: Synchronize with Client Agreements</h3>
-      </div>
-      <p style={{ margin: "0 0 18px", fontSize: "13px", color: "#64748B" }}>Verify that contract payments are reflected in bank statements</p>
-
-      {/* Contracts list */}
-      {savedContracts && savedContracts.length > 0 && (
-        <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", border: "1px solid #E2E8F0", padding: "14px 18px", marginBottom: "18px" }}>
-          <p style={{ margin: "0 0 10px", fontSize: "13.5px", fontWeight: "600", color: "#374151" }}>Contracts to verify:</p>
-          {savedContracts.map((c, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "5px" }}>
-              <FileIcon />
-              <span style={{ fontSize: "13.5px", color: "#374151" }}>{c.clientName || String(c)}</span>
-            </div>
-          ))}
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}><FileIcon /><h3 style={cardTitle}>Step 4: Synchronize with Client Agreements</h3></div>
+      <p style={cardSub}>Verify contract payments are reflected in bank statements</p>
+      {error && <ErrorBanner msg={error} onDismiss={() => setError("")} />}
+      {contracts.length > 0 && (
+        <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", border: "1px solid #E2E8F0", padding: "12px 16px", marginBottom: "16px" }}>
+          <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>Contracts on file ({contracts.length}):</p>
+          {contracts.map((c) => (<div key={c.id} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}><FileIcon /><span style={{ fontSize: "13px", color: "#374151" }}>{c.client_name}</span><span style={{ fontSize: "11px", color: "#94A3B8", backgroundColor: "#F1F5F9", padding: "1px 8px", borderRadius: "10px" }}>{c.validation_status}</span></div>))}
         </div>
       )}
-
-      {/* Payments reflected */}
       <p style={{ margin: "0 0 10px", fontSize: "13.5px", fontWeight: "600", color: "#0F172A" }}>Are contract payments reflected in bank statements?</p>
-      <RadioRow value="yes" selected={paymentsReflected} onChange={setPaymentsReflected} label="Yes - Payments reflected" desc="Paid in full, or initial deposit with subsequent monthly payments visible" />
-      <RadioRow value="no" selected={paymentsReflected} onChange={(v) => { setPaymentsReflected(v); setFutureEngagement(null); }} label="No - Payments not visible" desc="Contract payments are not reflected in bank statements" />
-
-      {/* Future engagement */}
+      <RadioRow value="yes" selected={paymentsReflected} onChange={setPaymentsReflected} label="Yes — Payments reflected" desc="Full payment or initial deposit + monthly payments visible" />
+      <RadioRow value="no" selected={paymentsReflected} onChange={(v) => { setPaymentsReflected(v); setFutureEngagement(null); }} label="No — Payments not visible" />
       {paymentsReflected === "no" && (
-        <div style={{ marginTop: "16px" }}>
+        <div style={{ marginTop: "14px" }}>
           <p style={{ margin: "0 0 10px", fontSize: "13.5px", fontWeight: "600", color: "#0F172A" }}>Is this for future engagement?</p>
-          <RadioRow value="yes" selected={futureEngagement} onChange={setFutureEngagement} label="Yes - Future engagement dates" />
-          <RadioRow value="no" selected={futureEngagement} onChange={setFutureEngagement} label="No - Dates have expired" />
+          <RadioRow value="yes" selected={futureEngagement} onChange={setFutureEngagement} label="Yes — Future engagement dates" />
+          <RadioRow value="no" selected={futureEngagement} onChange={setFutureEngagement} label="No — Dates have expired" />
         </div>
       )}
-
-      {/* Status */}
       {status && (
-        <div style={{
-          display: "flex", alignItems: "flex-start", gap: "10px", marginTop: "16px",
-          padding: "14px 16px", borderRadius: "8px",
-          backgroundColor: status.ok ? "#F0FDF4" : "#FFF5F5",
-          border: `1.5px solid ${status.ok ? "#86EFAC" : "#FCA5A5"}`,
-        }}>
+        <div style={{ ...alertBox, backgroundColor: status.ok ? "#F0FDF4" : "#FFF5F5", border: `1.5px solid ${status.ok ? "#86EFAC" : "#FCA5A5"}`, marginTop: "14px" }}>
           {status.ok ? <GreenCircleCheck /> : <AlertRedIcon />}
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: status.ok ? "#166534" : "#DC2626" }}>{status.label}</div>
-            {status.desc && <div style={{ fontSize: "13px", color: status.ok ? "#166534" : "#DC2626", marginTop: "2px" }}>{status.desc}</div>}
-          </div>
+          <div><div style={{ fontSize: "14px", fontWeight: "600", color: status.ok ? "#166534" : "#DC2626" }}>{status.label}</div>{status.desc && <div style={{ fontSize: "13px", color: status.ok ? "#166534" : "#DC2626", marginTop: "2px" }}>{status.desc}</div>}</div>
         </div>
       )}
-
-      <button onClick={onComplete} disabled={!canComplete} style={{ ...primaryBtn, width: "100%", marginTop: "16px", opacity: canComplete ? 1 : 0.5, cursor: canComplete ? "pointer" : "not-allowed" }}>
-        Complete Financial Viability Check
+      <button onClick={handleComplete} disabled={!canComplete || submitting} style={{ ...primaryBtn, width: "100%", marginTop: "16px", opacity: (canComplete && !submitting) ? 1 : 0.5, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+        {submitting ? <><SpinnerIcon color="#fff" /> Saving…</> : "Complete Financial Viability Check ✓"}
       </button>
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function FinancialPage(): React.JSX.Element {
   const router = useRouter();
-  const [step, setStep] = useState<string>("balance");
-  const [unlockedUpTo, setUnlockedUpTo] = useState<number>(0);
-  const [financialData, setFinancialData] = useState<FinancialData>({});
-  const [savedContracts, setSavedContracts] = useState<SavedContract[]>([]);
+  const searchParams = useSearchParams();
+  const [step, setStep] = useState("balance");
+  const [unlockedUpTo, setUnlockedUpTo] = useState(0);
+  const [financialRecordId, setFinancialRecordId] = useState<number | null>(null);
+  const [hrRecordId, setHrRecordId] = useState<number | null>(null);
 
   useEffect(() => {
-    try {
-      const c = sessionStorage.getItem("hr_contracts");
-      if (c) setSavedContracts(JSON.parse(c) as SavedContract[]);
-    } catch {}
-  }, []);
+    const fromUrl = searchParams.get("record_id");
+    let recordId: number | null = null;
+    if (fromUrl && !isNaN(parseInt(fromUrl, 10))) {
+      recordId = parseInt(fromUrl, 10);
+      try { sessionStorage.setItem("hr_record_id", fromUrl); } catch {}
+    } else {
+      try { const v = sessionStorage.getItem("hr_record_id"); if (v) recordId = parseInt(v, 10); } catch {}
+    }
+    setHrRecordId(recordId);
+  }, [searchParams]);
 
   const stepIds = ["balance", "cashflow", "investments", "contracts"];
+  const rid = (id: number | null) => id ? `?record_id=${id}` : "";
 
-  const handleTabClick = (tabId: string): void => {
+  const handleTabClick = (tabId: string) => {
     if (tabId === "financial") return;
     const routes: Record<string, string> = {
-      staff: "/employer/sections/hr-validation",
-      rtw: "/employer/sections/hr-validation/rtw-compliance",
-      pension: "/employer/sections/hr-validation/pension",
-      auth: "/employer/sections/hr-validation/authorising-officer",
-      contracts: "/employer/sections/hr-validation/contracts",
-      summary: "/employer/sections/hr-validation/summary",
+      staff: `/employer/sections/hr-validation${rid(hrRecordId)}`,
+      rtw: `/employer/sections/rtw-compliance${rid(hrRecordId)}`,
+      pension: `/employer/sections/pension${rid(hrRecordId)}`,
+      auth: `/employer/sections/authorising-officer${rid(hrRecordId)}`,
+      contracts: `/employer/sections/contracts${rid(hrRecordId)}`,
+      summary: `/employer/sections/summary${rid(hrRecordId)}`,
     };
     if (!isTabUnlocked(tabId)) return;
     if (routes[tabId]) router.push(routes[tabId]);
   };
 
-  const goToStep = (id: string): void => setStep(id);
-
-  const handleNext = (currentStep: string): void => {
-    const idx = stepIds.indexOf(currentStep);
-    if (idx < stepIds.length - 1) {
-      const nextStep = stepIds[idx + 1];
-      setStep(nextStep);
-      setUnlockedUpTo(Math.max(unlockedUpTo, idx + 1));
-    }
+  const goNext = (current: string) => {
+    const idx = stepIds.indexOf(current);
+    if (idx < stepIds.length - 1) { setStep(stepIds[idx + 1]); setUnlockedUpTo(Math.max(unlockedUpTo, idx + 1)); }
   };
 
-  const handleSave = (data: Partial<FinancialData>): void => setFinancialData((prev) => ({ ...prev, ...data }));
-
-  const handleComplete = (): void => {
+  const handleComplete = () => {
     markComplete("financial");
-    router.push("/employer/sections/summary");
+    router.push(`/employer/sections/summary${rid(hrRecordId)}`);
   };
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F1F5F9", minHeight: "100vh" }}>
       <TopNav onBack={() => router.back()} onTabClick={handleTabClick} />
-
-      <div style={{ maxWidth: "860px", margin: "30px auto", padding: "0 24px" }}>
+      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
         <div style={{ marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#0F172A", letterSpacing: "-0.3px" }}>Workflow 5: Bank Balance &amp; Financial Viability</h2>
-          <p style={{ margin: "6px 0 0", fontSize: "13.5px", color: "#64748B" }}>Verify financial health and compliance for sponsor licence</p>
+          <h2 style={{ margin: 0, fontSize: "clamp(16px, 4vw, 22px)", fontWeight: "700", color: "#0F172A" }}>Workflow 5: Bank Balance &amp; Financial Viability</h2>
+          <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#64748B" }}>Verify financial health and compliance for sponsor licence</p>
         </div>
-
-        <StepPills active={step} onStepClick={goToStep} unlockedUpTo={unlockedUpTo} />
-
-        {step === "balance" && <BalanceStep onNext={() => { handleNext("balance"); }} onSave={handleSave} />}
-        {step === "cashflow" && <CashFlowStep onNext={() => handleNext("cashflow")} onPrev={() => setStep("balance")} onSave={handleSave} />}
-        {step === "investments" && <InvestmentsStep onNext={() => handleNext("investments")} onPrev={() => setStep("cashflow")} onSave={handleSave} />}
-        {step === "contracts" && <ContractsSyncStep onComplete={handleComplete} onPrev={() => setStep("investments")} savedContracts={savedContracts} />}
-
-        <div style={{ marginTop: "20px" }}>
-          {step === "balance" ? (
-            <button onClick={() => router.push("/employer/sections/contracts")} style={backBtn}>Back to Contract Validation</button>
-          ) : (
-            <button onClick={() => { const idx = stepIds.indexOf(step); setStep(stepIds[idx - 1]); }} style={backBtn}>Previous Step</button>
-          )}
+        <StepPills active={step} onStepClick={setStep} unlockedUpTo={unlockedUpTo} />
+        {step === "balance" && <BalanceStep hrRecordId={hrRecordId} onNext={(id) => { setFinancialRecordId(id); goNext("balance"); }} />}
+        {step === "cashflow" && <CashFlowStep financialRecordId={financialRecordId} onNext={() => goNext("cashflow")} onPrev={() => setStep("balance")} />}
+        {step === "investments" && <InvestmentsStep hrRecordId={hrRecordId} financialRecordId={financialRecordId} onNext={() => goNext("investments")} onPrev={() => setStep("cashflow")} />}
+        {step === "contracts" && <ContractsSyncStep financialRecordId={financialRecordId} hrRecordId={hrRecordId} onComplete={handleComplete} onPrev={() => setStep("investments")} />}
+        <div style={{ marginTop: "16px" }}>
+          {step === "balance"
+            ? <button onClick={() => router.push(`/employer/sections/hr-validation/contracts${rid(hrRecordId)}`)} style={backBtn}>← Back to Contract Validation</button>
+            : <button onClick={() => { const idx = stepIds.indexOf(step); setStep(stepIds[idx - 1]); }} style={backBtn}>← Previous Step</button>}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Shared styles ────────────────────────────────────────────────────────────
-
 const lbl: React.CSSProperties = { display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1.5px solid #0852C9", fontSize: "14px", outline: "none", boxSizing: "border-box", color: "#0F172A", backgroundColor: "white" };
-const primaryBtn: React.CSSProperties = { padding: "13px 20px", borderRadius: "8px", border: "none", backgroundColor: "#0852C9", color: "white", fontSize: "14px", fontWeight: "600" };
-const backBtn: React.CSSProperties = { padding: "10px 20px", backgroundColor: "white", color: "#374151", border: "1.5px solid #D1D5DB", borderRadius: "8px", fontSize: "14px", fontWeight: "500", cursor: "pointer" };
+const primaryBtn: React.CSSProperties = { padding: "13px 20px", borderRadius: "8px", border: "none", backgroundColor: "#0852C9", color: "white", fontSize: "14px", fontWeight: "600", cursor: "pointer" };
+const backBtn: React.CSSProperties = { padding: "10px 18px", backgroundColor: "white", color: "#374151", border: "1.5px solid #D1D5DB", borderRadius: "8px", fontSize: "14px", fontWeight: "500", cursor: "pointer" };
+const card: React.CSSProperties = { backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "clamp(16px, 4vw, 28px)" };
+const cardTitle: React.CSSProperties = { margin: 0, fontSize: "clamp(14px, 3vw, 17px)", fontWeight: "700", color: "#0F172A" };
+const cardSub: React.CSSProperties = { margin: "0 0 18px", fontSize: "13px", color: "#64748B" };
+const alertBox: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: "10px", padding: "14px 16px", borderRadius: "8px" };
