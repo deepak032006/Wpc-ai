@@ -199,19 +199,19 @@ export async function loginAction(payload: {
     let profileData = null;
 
     if (token) {
-      const profileRes = await axios.get(
-        `${API_URL}accounts/profile`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      console.log("PROFILE RESPONSE:", profileRes.data);
-
-      profileData = profileRes.data;
+  const profileRes = await axios.get(
+    `${API_URL}accounts/me/`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     }
+  );
+
+  console.log("PROFILE RESPONSE:", profileRes.data);
+
+  profileData = profileRes.data;
+}
 
     const finalData = {
       ...data,

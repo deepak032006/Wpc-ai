@@ -318,6 +318,16 @@ export async function createAuthorisingOfficerAction(
       { method: 'POST', body: JSON.stringify(payload) },
       clientToken,
     );
+
+    
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      return { 
+        success: false, 
+        message: `Server error (${res.status}). Backend issue with Employee_id. Please try "Add New Individual" instead.` 
+      };
+    }
+
     const data = await res.json();
     if (!res.ok) return { success: false, message: errMsg(data) };
     return { success: true, message: 'Authorising Officer saved.', data };

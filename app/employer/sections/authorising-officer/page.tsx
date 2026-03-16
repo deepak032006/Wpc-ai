@@ -207,22 +207,22 @@ function AODetailsForm({
     setSubmitting(true);
     setApiError("");
 
-    const res = await createAuthorisingOfficerAction(
-      {
-        HRValidationRecord_id: hrRecordId,
-        Employee_id: mode === "staff" ? selectedEmpId : null,
-        selected_from_staff: mode === "staff",
-        full_name: name,
-        role_in_company: role,
-        AO_Credentials_senior_most_employee: creds.seniorMost,
-        AO_Credentials_company_director: creds.director,
-        AO_Credentials_on_payroll: creds.onPayroll,
-        AO_Credentials_holds_shared: creds.holdsShares,
-      },
-      getClientToken(),
-    );
+   const res = await createAuthorisingOfficerAction(
+  {
+    HRValidationRecord_id: hrRecordId,
+    Employee_id: null,           // ← always null, backend bug ki wajah se
+    selected_from_staff: false,  // ← always false
+    full_name: name,
+    role_in_company: role,
+    AO_Credentials_senior_most_employee: creds.seniorMost,
+    AO_Credentials_company_director: creds.director,
+    AO_Credentials_on_payroll: creds.onPayroll,
+    AO_Credentials_holds_shared: creds.holdsShares,
+  },
+  getClientToken(),
+);
 
-    if (!res.success) { setApiError(res.message); setSubmitting(false); return; }
+    if (!res.success) {console.error("FULL ERROR:", res.message);   setApiError(res.message); setSubmitting(false); return; }
     setValidated(true);
     onValidate(status);
     setSubmitting(false);
