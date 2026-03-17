@@ -190,11 +190,11 @@ export default function SummaryPage(): React.JSX.Element {
   const handleTabClick = (tabId: string): void => {
     const routes: Record<string, string> = {
       staff: "/employer/sections/hr-validation",
-      rtw: "/employer/sections/hr-validation/rtw-compliance",
-      pension: "/employer/sections/hr-validation/pension",
-      auth: "/employer/sections/hr-validation/authorising-officer",
-      contracts: "/employer/sections/hr-validation/contracts",
-      financial: "/employer/sections/hr-validation/financial",
+      rtw: "/employer/sections/rtw-compliance",
+      pension: "/employer/sections/pension",
+      auth: "/employer/sections/authorising-officer",
+      contracts: "/employer/sections/contracts",
+      financial: "/employer/sections/financial",
     };
     if (routes[tabId]) router.push(routes[tabId]);
   };

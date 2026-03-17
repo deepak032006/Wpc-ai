@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createAuthorisingOfficerAction,
@@ -197,7 +197,6 @@ function AODetailsForm({
   const status = getAOStatus(creds);
   const canValidate = name.trim().length > 0 && role.trim().length > 0;
 
-  // ✅ Server action — no CORS, server-to-server call
   const handleValidate = async () => {
     if (!canValidate) return;
     if (!hrRecordId) {
@@ -207,22 +206,22 @@ function AODetailsForm({
     setSubmitting(true);
     setApiError("");
 
-   const res = await createAuthorisingOfficerAction(
-  {
-    HRValidationRecord_id: hrRecordId,
-    Employee_id: null,           // ← always null, backend bug ki wajah se
-    selected_from_staff: false,  // ← always false
-    full_name: name,
-    role_in_company: role,
-    AO_Credentials_senior_most_employee: creds.seniorMost,
-    AO_Credentials_company_director: creds.director,
-    AO_Credentials_on_payroll: creds.onPayroll,
-    AO_Credentials_holds_shared: creds.holdsShares,
-  },
-  getClientToken(),
-);
+    const res = await createAuthorisingOfficerAction(
+      {
+        HRValidationRecord_id: hrRecordId,
+        Employee_id: null,
+        selected_from_staff: false,
+        full_name: name,
+        role_in_company: role,
+        AO_Credentials_senior_most_employee: creds.seniorMost,
+        AO_Credentials_company_director: creds.director,
+        AO_Credentials_on_payroll: creds.onPayroll,
+        AO_Credentials_holds_shared: creds.holdsShares,
+      },
+      getClientToken(),
+    );
 
-    if (!res.success) {console.error("FULL ERROR:", res.message);   setApiError(res.message); setSubmitting(false); return; }
+    if (!res.success) { console.error("FULL ERROR:", res.message); setApiError(res.message); setSubmitting(false); return; }
     setValidated(true);
     onValidate(status);
     setSubmitting(false);
@@ -323,11 +322,11 @@ function AODetailsForm({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PAGE
+// INNER PAGE — uses useSearchParams, must live inside <Suspense>
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function AuthorisingOfficer(): React.JSX.Element {
+function AuthorisingOfficerInner(): React.JSX.Element {
   const router = useRouter();
-  const searchParams = useSearchParams(); 
+  const searchParams = useSearchParams();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [mode, setMode] = useState<string | null>(null);
@@ -336,7 +335,6 @@ export default function AuthorisingOfficer(): React.JSX.Element {
   const [loadingEmps, setLoadingEmps] = useState(false);
 
   useEffect(() => {
-    // ✅ Priority 1: URL query param ?record_id=5
     const fromUrl = searchParams.get("record_id");
     let recordId: number | null = null;
 
@@ -344,7 +342,6 @@ export default function AuthorisingOfficer(): React.JSX.Element {
       recordId = parseInt(fromUrl, 10);
       try { sessionStorage.setItem("hr_record_id", fromUrl); } catch {}
     } else {
-      // ✅ Priority 2: sessionStorage fallback
       try {
         const v = sessionStorage.getItem("hr_record_id");
         if (v && !isNaN(parseInt(v, 10))) recordId = parseInt(v, 10);
@@ -449,6 +446,28 @@ export default function AuthorisingOfficer(): React.JSX.Element {
         </div>
       </div>
     </div>
+  );
+}
+
+
+export default function AuthorisingOfficer(): React.JSX.Element {
+  return (
+    <Suspense
+      fallback={
+        <div style={{
+          fontFamily: "'Segoe UI', system-ui, sans-serif",
+          backgroundColor: "#F1F5F9",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <SpinnerIcon />
+        </div>
+      }
+    >
+      <AuthorisingOfficerInner />
+    </Suspense>
   );
 }
 

@@ -434,8 +434,8 @@ const [companyRegistered, setCompanyRegistered] = useState<string | null>(null);
     if (tabId === "pension") return;
    const routes: Record<string, string> = {
   staff: "/employer/sections/hr-validation",
-  rtw: "/employer/sections/hr-validation/rtw-compliance",
-  auth: "/employer/sections/hr-validation/authorising-officer",
+  rtw: "/employer/sections/rtw-compliance",
+  auth: "/employer/sections/authorising-officer",
   contracts: "/employer/sections/hr-validation/contracts",
   financial: "/employer/sections/hr-validation/financial",
   summary: "/employer/sections/hr-validation/summary",

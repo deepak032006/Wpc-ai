@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createFinancialRecordAction,
@@ -353,7 +353,10 @@ function ContractsSyncStep({ financialRecordId, hrRecordId, onComplete, onPrev }
   );
 }
 
-export default function FinancialPage(): React.JSX.Element {
+// ═══════════════════════════════════════════════════════════════════════════════
+// INNER PAGE — uses useSearchParams, must live inside <Suspense>
+// ═══════════════════════════════════════════════════════════════════════════════
+function FinancialPageInner(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState("balance");
@@ -420,6 +423,31 @@ export default function FinancialPage(): React.JSX.Element {
         </div>
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAGE EXPORT — wraps inner component in Suspense boundary (required by Next.js
+// when useSearchParams is used inside a statically rendered page)
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function FinancialPage(): React.JSX.Element {
+  return (
+    <Suspense
+      fallback={
+        <div style={{
+          fontFamily: "'Segoe UI', system-ui, sans-serif",
+          backgroundColor: "#F1F5F9",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <SpinnerIcon />
+        </div>
+      }
+    >
+      <FinancialPageInner />
+    </Suspense>
   );
 }
 
