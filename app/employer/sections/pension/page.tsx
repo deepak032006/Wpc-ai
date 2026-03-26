@@ -2,19 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import {
+  listEmployeesAction,
+  type Employee,
+} from "@/app/employer/sections/action/action";
 
-const tabs = [
-  { label: "Staff List", id: "staff" },
-  { label: "1. RTW Compliance", id: "rtw" },
-  { label: "2. Pension", id: "pension" },
-  { label: "3. Authorising Officer", id: "auth" },
-  { label: "4. Contracts", id: "contracts" },
-  { label: "5. Financial", id: "financial" },
-  { label: "6. Summary", id: "summary" },
-];
-
-
-
+// ====================== ICONS ======================
 const PensionIcon = () => (
   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" style={{ flexShrink: 0 }}>
     <rect x="2" y="3" width="18" height="16" rx="2" stroke="#374151" strokeWidth="1.5" fill="none" />
@@ -44,8 +37,7 @@ const UploadIcon = () => (
   </svg>
 );
 
-
-
+// ====================== HELPERS ======================
 const getProgress = () => {
   try { return JSON.parse(sessionStorage.getItem("hr_progress") || "{}"); } catch { return {}; }
 };
@@ -61,23 +53,42 @@ const isTabUnlocked = (tabId: string) => {
   if (tabId === "staff" || tabId === "rtw") return true;
   if (tabId === "pension") return true;
   const p = getProgress();
-  if (tabId === "auth") return p.pension;
-  if (tabId === "contracts") return p.auth;
-  if (tabId === "financial") return p.contracts;
-  if (tabId === "summary") return p.financial;
+  if (tabId === "auth") return !!p.pension;
+  if (tabId === "contracts") return !!p.auth;
+  if (tabId === "financial") return !!p.contracts;
+  if (tabId === "summary") return !!p.financial;
   return false;
 };
 
+function getClientToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.split("; ").find((row) => row.startsWith("access-token="));
+  if (!match) return "";
+  const raw = decodeURIComponent(match.split("=").slice(1).join("="));
+  return raw.replace(/\s+/g, "").replace(/^(Bearer|Token)\s*/i, "");
+}
+
+// ====================== TOP NAV ======================
 type TopNavProps = {
   onBack: () => void;
   onTabClick: (tabId: string) => void;
 };
 
 function TopNav({ onBack, onTabClick }: TopNavProps) {
+  const tabs = [
+    { label: "Staff List", id: "staff" },
+    { label: "1. RTW Compliance", id: "rtw" },
+    { label: "2. Pension", id: "pension" },
+    { label: "3. Authorising Officer", id: "auth" },
+    { label: "4. Contracts", id: "contracts" },
+    { label: "5. Financial", id: "financial" },
+    { label: "6. Summary", id: "summary" },
+  ];
+
   return (
     <div style={{ backgroundColor: "white", borderBottom: "1px solid #E2E8F0", padding: "0 28px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "16px", paddingBottom: "2px" }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M13 15L8 10L13 5" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -87,21 +98,27 @@ function TopNav({ onBack, onTabClick }: TopNavProps) {
           <div style={{ fontSize: "11.5px", color: "#94A3B8", marginTop: "1px" }}>V.03</div>
         </div>
       </div>
+
       <div style={{ display: "flex", gap: "6px", marginTop: "10px", paddingBottom: "12px", overflowX: "auto" }}>
         {tabs.map((tab) => {
           const isActive = tab.id === "pension";
           const unlocked = isTabUnlocked(tab.id);
           return (
-            <button key={tab.id} onClick={() => onTabClick(tab.id)} style={{
-              padding: "6px 16px", borderRadius: "20px",
-              border: isActive ? "none" : "1.5px solid #D1D5DB",
-              cursor: unlocked && !isActive ? "pointer" : "default",
-              fontSize: "13px", fontWeight: isActive ? "600" : "400",
-              color: isActive ? "white" : "#374151",
-              backgroundColor: isActive ? "#0852C9" : "white",
-              whiteSpace: "nowrap", transition: "all 0.15s",
-              boxShadow: isActive ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
-            }}>{tab.label}</button>
+            <button
+              key={tab.id}
+              onClick={() => onTabClick(tab.id)}
+              style={{
+                padding: "6px 16px", borderRadius: "20px",
+                border: isActive ? "none" : "1.5px solid #D1D5DB",
+                cursor: unlocked && !isActive ? "pointer" : "default",
+                fontSize: "13px", fontWeight: isActive ? "600" : "400",
+                color: isActive ? "white" : "#374151",
+                backgroundColor: isActive ? "#0852C9" : "white",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {tab.label}
+            </button>
           );
         })}
       </div>
@@ -109,51 +126,55 @@ function TopNav({ onBack, onTabClick }: TopNavProps) {
   );
 }
 
+// ====================== STEP PILLS (FIXED TYPE) ======================
 type StepPillsProps = {
-  activeStep: string;
-  onStepClick: (step: string) => void;
+  activeStep: "company" | "eligibility";
+  onStepClick: (step: "company" | "eligibility") => void;   // ← Fixed type
   companyRegistered: string | null;
 };
 
 function StepPills({ activeStep, onStepClick, companyRegistered }: StepPillsProps) {
   const steps = [
-    { id: "company", label: "1. Company Registration" },
-    { id: "eligibility", label: "2. Employee Eligibility" },
+    { id: "company" as const, label: "1. Company Registration" },
+    { id: "eligibility" as const, label: "2. Employee Eligibility" },
   ];
+
   return (
     <div style={{ display: "flex", gap: "8px", marginBottom: "22px" }}>
       {steps.map((s) => {
         const isActive = s.id === activeStep;
-      
         const clickable = s.id === "company" || companyRegistered === "yes";
+
         return (
-          <button key={s.id} onClick={() => clickable && onStepClick(s.id)} style={{
-            padding: "6px 18px", borderRadius: "20px",
-            border: isActive ? "none" : "1.5px solid #D1D5DB",
-            cursor: clickable && !isActive ? "pointer" : "default",
-            fontSize: "13px", fontWeight: isActive ? "600" : "400",
-            color: isActive ? "white" : "#374151",
-            backgroundColor: isActive ? "#0852C9" : "white",
-            whiteSpace: "nowrap",
-            boxShadow: isActive ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
-          }}>{s.label}</button>
+          <button
+            key={s.id}
+            onClick={() => clickable && onStepClick(s.id)}
+            style={{
+              padding: "6px 18px", borderRadius: "20px",
+              border: isActive ? "none" : "1.5px solid #D1D5DB",
+              cursor: clickable && !isActive ? "pointer" : "default",
+              fontSize: "13px", fontWeight: isActive ? "600" : "400",
+              color: isActive ? "white" : "#374151",
+              backgroundColor: isActive ? "#0852C9" : "white",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {s.label}
+          </button>
         );
       })}
     </div>
   );
 }
 
+// ====================== COMPANY REGISTRATION STEP ======================
 type CompanyRegistrationStepProps = {
   value: string | null;
   onChange: (value: string) => void;
   onContinue: () => void;
 };
 
-function CompanyRegistrationStep({
-  value,
-  onChange,
-  onContinue,
-}: CompanyRegistrationStepProps) {
+function CompanyRegistrationStep({ value, onChange, onContinue }: CompanyRegistrationStepProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
@@ -162,8 +183,6 @@ function CompanyRegistrationStep({
 
   return (
     <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "28px 30px" }}>
-
-      
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
         <PensionIcon />
         <h2 style={{ margin: 0, fontSize: "19px", fontWeight: "700", color: "#0F172A" }}>Company Pension Compliance</h2>
@@ -172,7 +191,7 @@ function CompanyRegistrationStep({
 
       <p style={{ margin: "0 0 14px", fontSize: "14px", fontWeight: "600", color: "#0F172A" }}>Is the company registered with a pension scheme?</p>
 
-      
+      {/* Yes */}
       <div
         onClick={() => onChange("yes")}
         style={{
@@ -183,7 +202,7 @@ function CompanyRegistrationStep({
         }}
       >
         <div style={{
-          width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
+          width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
           border: `2px solid ${isYes ? "#0852C9" : "#D1D5DB"}`,
           backgroundColor: isYes ? "#0852C9" : "white",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -192,11 +211,11 @@ function CompanyRegistrationStep({
         </div>
         <div>
           <div style={{ fontSize: "14px", fontWeight: "600", color: "#0F172A" }}>Yes</div>
-          <div style={{ fontSize: "13px", color: "#64748B", marginTop: "2px" }}>Company is registered with a qualifying pension scheme</div>
+          <div style={{ fontSize: "13px", color: "#64748B" }}>Company is registered with a qualifying pension scheme</div>
         </div>
       </div>
 
-     
+      {/* No */}
       <div
         onClick={() => onChange("no")}
         style={{
@@ -207,7 +226,7 @@ function CompanyRegistrationStep({
         }}
       >
         <div style={{
-          width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
+          width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
           border: `2px solid ${isNo ? "#0852C9" : "#D1D5DB"}`,
           backgroundColor: isNo ? "#0852C9" : "white",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -216,11 +235,10 @@ function CompanyRegistrationStep({
         </div>
         <div>
           <div style={{ fontSize: "14px", fontWeight: "600", color: "#0F172A" }}>No</div>
-          <div style={{ fontSize: "13px", color: "#64748B", marginTop: "2px" }}>Company is not registered with a pension scheme</div>
+          <div style={{ fontSize: "13px", color: "#64748B" }}>Company is not registered with a pension scheme</div>
         </div>
       </div>
 
-     
       {isNo && (
         <div style={{
           display: "flex", alignItems: "flex-start", gap: "10px",
@@ -229,15 +247,12 @@ function CompanyRegistrationStep({
         }}>
           <AlertIcon />
           <div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#DC2626", marginBottom: "3px" }}>Company Non-Compliant</div>
-            <div style={{ fontSize: "13px", color: "#DC2626", lineHeight: "1.5" }}>
-              The company must be registered with a pension scheme to proceed. Validation paused until registration is completed.
-            </div>
+            <div style={{ fontSize: "14px", fontWeight: "600", color: "#DC2626" }}>Company Non-Compliant</div>
+            <div style={{ fontSize: "13px", color: "#DC2626" }}>The company must be registered with a pension scheme to proceed.</div>
           </div>
         </div>
       )}
 
-     
       {isYes && (
         <div style={{ marginBottom: "20px" }}>
           <p style={{ margin: "0 0 10px", fontSize: "13.5px", fontWeight: "500", color: "#374151" }}>
@@ -259,7 +274,6 @@ function CompanyRegistrationStep({
         </div>
       )}
 
-     
       {value && (
         <button
           onClick={onContinue}
@@ -276,137 +290,151 @@ function CompanyRegistrationStep({
   );
 }
 
-
-type Employee = {
-  id: number;
-  name: string;
-};
-
+// ====================== EMPLOYEE ELIGIBILITY STEP ======================
 type EmployeeEligibilityStepProps = {
   employees: Employee[];
   onComplete: () => void;
 };
 
-function EmployeeEligibilityStep({
-  employees,
-  onComplete,
-}: EmployeeEligibilityStepProps) {
+function EmployeeEligibilityStep({ employees, onComplete }: EmployeeEligibilityStepProps) {
+  const [checks, setChecks] = useState<Record<number, any>>({});
 
-  const [checks, setChecks] = useState<Record<number, any>>(() =>
-    Object.fromEntries(
-      employees.map((e) => [
-        e.id,
-        { age22: false, earnings10k: false, autoEnrolled: false, optedOut: false },
-      ])
-    )
-  );
+  useEffect(() => {
+    const initial: any = {};
+    employees.forEach((emp) => {
+      initial[emp.id] = { age22: false, earnings10k: false, autoEnrolled: false, optedOut: false };
+    });
+    setChecks(initial);
+  }, [employees]);
 
- const toggle = (empId: number, field: string) => {
-  setChecks((prev) => ({
-    ...prev,
-    [empId]: {
-      ...prev[empId],
-      [field]: !prev[empId][field],
-    },
-  }));
-};
+  const toggle = (empId: number, field: string) => {
+    setChecks((prev) => ({
+      ...prev,
+      [empId]: { ...prev[empId], [field]: !prev[empId][field] },
+    }));
+  };
 
- const getStatus = (c: any) => {
-    const eligible = c.age22 && c.earnings10k;
+  const getStatus = (c: any) => {
+    const eligible = c?.age22 && c?.earnings10k;
     if (!eligible) return { label: "Not Eligible", bg: "#F3F4F6", color: "#6B7280", border: "#D1D5DB" };
     if (c.autoEnrolled) return { label: "Compliant", bg: "#DCFCE7", color: "#166534", border: "#86EFAC" };
     if (c.optedOut) return { label: "Opted Out", bg: "#FEF9C3", color: "#854D0E", border: "#FDE047" };
     return { label: "Non-Compliant", bg: "#FEE2E2", color: "#DC2626", border: "#FCA5A5", icon: true };
   };
 
+  const isAllChecked = employees.length > 0 &&
+    employees.every((emp) => {
+      const c = checks[emp.id];
+      return c && c.age22 && c.earnings10k && (c.autoEnrolled || c.optedOut);
+    });
+
   return (
     <div style={{ backgroundColor: "white", borderRadius: "10px", border: "1px solid #E2E8F0", padding: "28px 30px" }}>
-
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
         <PersonIcon />
         <h2 style={{ margin: 0, fontSize: "19px", fontWeight: "700", color: "#0F172A" }}>Employee Pension Eligibility</h2>
       </div>
-      <p style={{ margin: "0 0 22px", fontSize: "13px", color: "#64748B" }}>Check pension eligibility and enrollment status for each employee</p>
+      <p style={{ margin: "0 0 24px", fontSize: "13.5px", color: "#64748B" }}>
+        Check pension eligibility and enrollment status for each employee
+      </p>
 
-      
-      <div style={{ border: "1px solid #E2E8F0", borderRadius: "8px", overflow: "hidden", marginBottom: "20px" }}>
-       
+      <div style={{ border: "1px solid #E2E8F0", borderRadius: "10px", overflow: "hidden", marginBottom: "24px" }}>
         <div style={{
-          display: "grid", gridTemplateColumns: "2fr 1fr 1.3fr 1.3fr 1fr 1.2fr",
-          padding: "12px 16px", backgroundColor: "#F8FAFC",
+          display: "grid",
+          gridTemplateColumns: "2.2fr 1fr 1.2fr 1.2fr 1.2fr 1.3fr",
+          padding: "14px 20px",
+          backgroundColor: "#F8FAFC",
           borderBottom: "1px solid #E2E8F0",
+          fontSize: "13px",
+          fontWeight: "600",
+          color: "#64748B"
         }}>
-          {["Employee", "Age 22+", "Earnings £10k+", "Auto Enrolled", "Opted Out", "Status"].map((h) => (
-            <div key={h} style={{ fontSize: "13px", fontWeight: "500", color: "#64748B" }}>{h}</div>
-          ))}
+          <div>Employee</div>
+          <div>Age 22+</div>
+          <div>Earnings £10k+</div>
+          <div>Auto Enrolled</div>
+          <div>Opted Out</div>
+          <div>Status</div>
         </div>
 
-       
-        {employees.map((emp) => {
-          const c = checks[emp.id] || {};
-          const status = getStatus(c);
-          return (
-            <div key={emp.id} style={{
-              display: "grid", gridTemplateColumns: "2fr 1fr 1.3fr 1.3fr 1fr 1.2fr",
-              padding: "14px 16px", borderBottom: "1px solid #F1F5F9",
-              alignItems: "center",
-            }}>
-              <div style={{ fontSize: "14px", fontWeight: "500", color: "#0F172A" }}>{emp.name}</div>
-              {["age22", "earnings10k", "autoEnrolled", "optedOut"].map((field) => (
-                <div key={field}>
-                  <input
-                    type="checkbox"
-                    checked={!!c[field]}
-                    onChange={() => toggle(emp.id, field)}
+        {employees.length === 0 ? (
+          <div style={{ padding: "60px 20px", textAlign: "center", color: "#64748B" }}>
+            No employees found. Please add employees from Staff List first.
+          </div>
+        ) : (
+          employees.map((emp, index) => {
+            const c = checks[emp.id] || {};
+            const status = getStatus(c);
+            return (
+              <div
+                key={emp.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2.2fr 1fr 1.2fr 1.2fr 1.2fr 1.3fr",
+                  padding: "16px 20px",
+                  borderBottom: index === employees.length - 1 ? "none" : "1px solid #F1F5F9",
+                  alignItems: "center",
+                  backgroundColor: index % 2 === 0 ? "#fff" : "#FAFBFC",
+                }}
+              >
+                <div style={{ fontSize: "14.5px", fontWeight: "600", color: "#0F172A" }}>{emp.employee_full_name}</div>
+                {["age22", "earnings10k", "autoEnrolled", "optedOut"].map((field) => (
+                  <div key={field} style={{ display: "flex", justifyContent: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!c[field]}
+                      onChange={() => toggle(emp.id, field)}
+                      style={{ width: "19px", height: "19px", accentColor: "#0852C9", cursor: "pointer" }}
+                    />
+                  </div>
+                ))}
+                <div>
+                  <span
                     style={{
-                      width: "18px", height: "18px", cursor: "pointer",
-                      accentColor: "#0852C9",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 14px",
+                      borderRadius: "9999px",
+                      fontSize: "12.5px",
+                      fontWeight: "600",
+                      backgroundColor: status.bg,
+                      color: status.color,
+                      border: `1px solid ${status.border}`,
                     }}
-                  />
+                  >
+                    {status.icon && <AlertIcon />}
+                    {status.label}
+                  </span>
                 </div>
-              ))}
-              <div>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: "5px",
-                  padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600",
-                  backgroundColor: status.bg, color: status.color,
-                  border: `1px solid ${status.border}`,
-                }}>
-                  {status.icon && (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M6 1.5L1 10h10L6 1.5z" stroke={status.color} strokeWidth="1.2" fill="none" />
-                      <path d="M6 5.5v2M6 9v.3" stroke={status.color} strokeWidth="1.1" strokeLinecap="round" />
-                    </svg>
-                  )}
-                  {status.label}
-                </span>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
-      
-      <div style={{
-        backgroundColor: "#F8FAFC", borderRadius: "8px", padding: "16px 18px", marginBottom: "20px",
-      }}>
-        <p style={{ margin: "0 0 10px", fontSize: "13.5px", fontWeight: "600", color: "#374151" }}>Eligibility Rules:</p>
-        {[
-          "Employees aged 22+ earning over £10,000/year must be auto-enrolled",
-          "Opted-out employees should have opt-out evidence on file",
-          "Eligible but not enrolled = Non-compliant",
-        ].map((rule) => (
-          <p key={rule} style={{ margin: "0 0 5px", fontSize: "13px", color: "#64748B" }}>• {rule}</p>
-        ))}
+      <div style={{ backgroundColor: "#F8FAFC", borderRadius: "10px", padding: "18px 22px", marginBottom: "28px", border: "1px solid #E2E8F0" }}>
+        <p style={{ margin: "0 0 12px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Eligibility Rules:</p>
+        <ul style={{ margin: 0, paddingLeft: "20px", color: "#64748B", fontSize: "13.5px", lineHeight: "1.65" }}>
+          <li>Employees aged 22+ earning over £10,000/year must be auto-enrolled</li>
+          <li>Opted-out employees should have opt-out evidence on file</li>
+          <li>Eligible but not enrolled = Non-compliant</li>
+        </ul>
       </div>
 
-      
       <button
         onClick={onComplete}
+        disabled={!isAllChecked && employees.length > 0}
         style={{
-          width: "100%", padding: "14px", backgroundColor: "#0852C9",
-          color: "white", border: "none", borderRadius: "8px",
-          fontSize: "14px", fontWeight: "600", cursor: "pointer",
+          width: "100%",
+          padding: "15px",
+          backgroundColor: isAllChecked || employees.length === 0 ? "#0852C9" : "#93ABDE",
+          color: "white",
+          border: "none",
+          borderRadius: "8px",
+          fontSize: "15px",
+          fontWeight: "600",
+          cursor: isAllChecked || employees.length === 0 ? "pointer" : "not-allowed",
         }}
       >
         Complete Pension Validation
@@ -415,76 +443,95 @@ function EmployeeEligibilityStep({
   );
 }
 
-
-
+// ====================== MAIN COMPONENT ======================
 export default function PensionCompliance() {
   const router = useRouter();
- const [employees, setEmployees] = useState<Employee[]>([]);
- const [step, setStep] = useState<string>("company");
-const [companyRegistered, setCompanyRegistered] = useState<string | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [hrRecordId, setHrRecordId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState<"company" | "eligibility">("company");
+  const [companyRegistered, setCompanyRegistered] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("hr_employees");
-      if (saved) setEmployees(JSON.parse(saved));
-    } catch {}
+    const savedId =
+      sessionStorage.getItem("hr_record_id") ||
+      document.cookie.split("; ").find((r) => r.startsWith("hr_record_id="))?.split("=")[1];
+
+    if (savedId) {
+      const id = Number(savedId);
+      setHrRecordId(id);
+      loadEmployees(id);
+    } else {
+      setLoading(false);
+    }
   }, []);
+
+  const loadEmployees = async (recordId: number) => {
+    try {
+      const token = getClientToken();
+      const res = await listEmployeesAction(recordId, token);
+      if (res.success && res.data) {
+        setEmployees(res.data);
+      }
+    } catch (e) {
+      console.error("Failed to load employees:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTabClick = (tabId: string) => {
     if (tabId === "pension") return;
-   const routes: Record<string, string> = {
-  staff: "/employer/sections/hr-validation",
-  rtw: "/employer/sections/rtw-compliance",
-  auth: "/employer/sections/authorising-officer",
-  contracts: "/employer/sections/hr-validation/contracts",
-  financial: "/employer/sections/hr-validation/financial",
-  summary: "/employer/sections/hr-validation/summary",
-};
     if (!isTabUnlocked(tabId)) return;
-    if (routes[tabId]) router.push(routes[tabId]);
+
+    const routes: Record<string, string> = {
+      staff: "/employer/sections/hr-validation",
+      rtw: `/employer/sections/rtw-compliance?record_id=${hrRecordId}`,
+      auth: `/employer/sections/authorising-officer?record_id=${hrRecordId}`,
+      contracts: `/employer/sections/contracts?record_id=${hrRecordId}`,
+      financial: `/employer/sections/financial?record_id=${hrRecordId}`,
+      summary: `/employer/sections/summary?record_id=${hrRecordId}`,
+    };
+    router.push(routes[tabId] || "");
   };
 
   const handleCompanyContinue = () => {
     if (companyRegistered === "yes") {
       setStep("eligibility");
     } else {
-      
       router.push("/employer/sections/hr-validation");
     }
   };
 
   const handleComplete = () => {
     markComplete("pension");
-    router.push("/employer/sections/authorising-officer");
+    router.push(`/employer/sections/authorising-officer?record_id=${hrRecordId}`);
   };
 
   const handleBack = () => router.back();
 
+  if (loading) {
+    return <div style={{ padding: "100px", textAlign: "center" }}>Loading employees...</div>;
+  }
+
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F1F5F9", minHeight: "100vh" }}>
-
       <TopNav onBack={handleBack} onTabClick={handleTabClick} />
 
       <div style={{ maxWidth: "860px", margin: "30px auto", padding: "0 24px" }}>
-
-       
         <div style={{ marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#0F172A", letterSpacing: "-0.3px" }}>
-            Workflow 2: Pension Compliance
-          </h2>
+          <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#0F172A" }}>Workflow 2: Pension Compliance</h2>
           <p style={{ margin: "6px 0 0", fontSize: "13.5px", color: "#64748B" }}>
             Verify company pension registration and employee eligibility
           </p>
         </div>
 
-     
         <StepPills
           activeStep={step}
-          onStepClick={setStep}
+          onStepClick={setStep}           // ← Ab type match karega
           companyRegistered={companyRegistered}
         />
 
-      
         {step === "company" ? (
           <CompanyRegistrationStep
             value={companyRegistered}
@@ -492,19 +539,21 @@ const [companyRegistered, setCompanyRegistered] = useState<string | null>(null);
             onContinue={handleCompanyContinue}
           />
         ) : (
-          <EmployeeEligibilityStep
-            employees={employees}
-            onComplete={handleComplete}
-          />
+          <EmployeeEligibilityStep employees={employees} onComplete={handleComplete} />
         )}
 
         <div style={{ marginTop: "24px" }}>
           <button
-            onClick={() => router.push("/employer/sections/rtw-compliance")}
+            onClick={handleBack}
             style={{
-              padding: "10px 20px", backgroundColor: "white", color: "#374151",
-              border: "1.5px solid #D1D5DB", borderRadius: "8px",
-              fontSize: "14px", fontWeight: "500", cursor: "pointer",
+              padding: "10px 20px",
+              backgroundColor: "white",
+              color: "#374151",
+              border: "1.5px solid #D1D5DB",
+              borderRadius: "8px",
+              fontSize: "14px",
+              fontWeight: "500",
+              cursor: "pointer",
             }}
           >
             Back to RTW Validation

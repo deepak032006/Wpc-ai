@@ -299,11 +299,11 @@ export default function ContractsPage(): React.JSX.Element {
     if (tabId === "contracts") return;
     const routes: Record<string, string> = {
       staff: "/employer/sections/hr-validation",
-      rtw: "/employer/sections/hr-validation/rtw-compliance",
-      pension: "/employer/sections/hr-validation/pension",
-      auth: "/employer/sections/hr-validation/authorising-officer",
-      financial: "/employer/sections/hr-validation/financial",
-      summary: "/employer/sections/hr-validation/summary",
+      rtw: "/employer/sections/rtw-compliance",
+      pension: "/employer/sections/pension",
+      auth: "/employer/sections/authorising-officer",
+      financial: "/employer/sections/financial",
+      summary: "/employer/sections/summary",
     };
     if (!isTabUnlocked(tabId)) return;
     if (routes[tabId]) router.push(routes[tabId]);
